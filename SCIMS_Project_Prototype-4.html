@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCIMS — Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --espresso:#1F3319; --espresso-2:#2E4B24; --espresso-3:#436B36;
+    --paprika:#C2452F; --paprika-dark:#9C3423; --turmeric:#D99A2B;
+    --cardamom:#5A9642; --bayleaf:#2F6B57; --indigo:#35607A; --ube:#6B4A7A; --olive:#6E7A2E;
+    --cream:#F1F7E8; --paper:#FEFFF9; --ink:#24301C; --ink-muted:#7C8A6E; --line:#DCE8C9;
+    --danger:#9C3423; --radius:10px; --shadow: 0 10px 26px rgba(31,51,25,0.12);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Work Sans',sans-serif;
+    background: radial-gradient(circle, rgba(31,51,25,0.05) 1px, transparent 1.2px) 0 0/16px 16px, var(--cream);
+    color:var(--ink); min-height:100vh;
+  }
+  h1,h2,h3,.brand-word{font-family:'Fraunces',serif; font-optical-sizing:auto;}
+  .mono{font-family:'Space Mono',monospace;}
+  button{font-family:'Work Sans',sans-serif;cursor:pointer;border:none;}
+  input,select{font-family:'Work Sans',sans-serif;}
+
+  .stamp{display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:6px; 
+  border:1px solid currentColor; background:rgba(255,255,255,.25); font-family:'Space Mono', monospace; 
+  font-size:16px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;}
+
+  .perf{height:1px; margin:0; background-image: radial-gradient(circle, var(--line) 1.4px, transparent 1.6px);
+    background-size: 9px 1px; background-repeat: repeat-x; background-position: left center;}
+
+  #login-screen{min-height:100vh; display:flex; align-items:center; justify-content:center;
+    background: radial-gradient(circle at 20% 15%, rgba(194,69,47,0.18), transparent 45%),
+      radial-gradient(circle at 82% 78%, rgba(217,154,43,0.14), transparent 50%),
+      linear-gradient(165deg, var(--espresso) 0%, #16240F 55%, var(--espresso-2) 100%); padding:24px;}
+  .ticket{width:100%; max-width:400px; background:var(--paper); border-radius:4px 4px 0 0;
+    box-shadow: 0 28px 60px rgba(10,6,3,0.4); position:relative; animation: rise .5s cubic-bezier(.2,.8,.2,1);}
+  @keyframes rise{ from{opacity:0; transform:translateY(16px);} to{opacity:1; transform:translateY(0);} }
+  .ticket-top{padding:30px 32px 20px; border-bottom:1.5px dashed var(--line);}
+  .ticket-num{font-family:'Space Mono',monospace; font-size:16px; color:var(--ink-muted); letter-spacing:.08em; text-transform:uppercase; display:flex; justify-content:space-between;}
+  .ticket-brand{display:flex; align-items:baseline; gap:10px; margin:14px 0 2px;}
+  .ticket-brand .mark{width:36px; height:36px; border-radius:50%; background:var(--paprika); color:var(--paper);
+    display:flex; align-items:center; justify-content:center; font-family:'Fraunces',serif; font-weight:700; font-size:22.5px;
+    flex-shrink:0; border:2px solid var(--espresso);}
+  .ticket-brand .word{font-size:33px; font-weight:700; letter-spacing:-.01em;}
+  .ticket-sub{font-size:16px; color:var(--ink-muted); letter-spacing:.06em; text-transform:uppercase; margin-left:46px;}
+  .ticket-body{padding:26px 32px 8px;}
+  .ticket-body h1{font-size:28.5px; font-weight:600; margin:0 0 18px;}
+  .field{margin-bottom:15px;}
+  .field label{display:block; font-family:'Space Mono',monospace; font-size:16px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-muted); margin-bottom:6px;}
+  .field input, .field select{width:100%; padding:12px 14px; border:none; border-bottom:1.5px solid var(--line); border-radius:0;
+    font-size:21px; color:var(--ink); background:transparent; transition:border-color .15s;}
+  .field input:focus, .field select:focus{outline:none; border-color:var(--paprika);}
+  .password-field{position:relative;}
+  .password-field input{padding-right:82px;}
+  .password-toggle{position:absolute; right:0; bottom:8px; padding:5px 0 5px 12px; background:transparent; color:var(--espresso-2);
+    font-family:'Space Mono',monospace; font-size:14px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;}
+  .password-toggle:hover{color:var(--paprika);}
+  .password-toggle:focus-visible{outline:2px solid var(--paprika); outline-offset:3px; border-radius:2px;}
+  .btn-primary{width:100%; padding:13px; border-radius:3px; background:var(--paprika); color:var(--paper);
+    font-weight:700; font-size:20px; letter-spacing:.03em; text-transform:uppercase; font-family:'Space Mono',monospace; transition:background .15s;}
+  .btn-primary:hover{background:var(--paprika-dark);}
+  .ticket-foot{padding:16px 32px 24px; text-align:center;}
+  .ticket-foot .perf{margin-bottom:16px;}
+  .ticket-foot span{font-size:16px; color:var(--ink-muted); font-family:'Space Mono',monospace;}
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; scroll-behavior:auto!important;}
+  }
+
+  .login-error{display:none; align-items:flex-start; gap:8px; background:rgba(156,52,35,0.06); border:1px solid var(--danger);
+    color:var(--danger); padding:10px 12px; border-radius:4px; font-size:18px; margin:0 0 16px; line-height:1.4;}
+  .sample-toggle{font-family:'Space Mono',monospace; font-size:16.5px; color:var(--ink-muted); text-decoration:underline;
+    cursor:pointer; margin:14px 0 0; display:inline-block;}
+  .sample-list{display:none; margin-top:10px;}
+  .sample-row{display:flex; justify-content:space-between; align-items:center; padding:8px 10px; border:1px solid var(--line);
+    border-radius:4px; margin-bottom:6px; font-size:16.5px; cursor:pointer; font-family:'Space Mono',monospace; transition:all .15s;}
+  .sample-row:hover{border-color:var(--paprika); background:rgba(194,69,47,0.04);}
+  .sample-row .r{color:var(--ink-muted);}
+
+  #app-shell{display:none; min-height:100vh;} #app-shell.visible{display:flex;}
+  .sidebar{width:290px; flex-shrink:0; background:var(--espresso); color:var(--cream); display:flex; flex-direction:column;
+    padding:26px 16px; min-height:100vh; position:sticky; top:0; border-right:3px solid var(--paprika);}
+  .sidebar .brand{display:flex; align-items:center; gap:10px; padding:2px 8px 20px; border-bottom:1px dashed rgba(241,247,232,0.2); margin-bottom:14px;}
+  .sidebar .brand .mark{width:32px; height:32px; border-radius:50%; background:var(--paprika); color:var(--paper);
+    display:flex; align-items:center; justify-content:center; font-family:'Fraunces',serif; font-weight:700; font-size:21px; flex-shrink:0;
+    border:2px solid rgba(241,247,232,0.3);}
+  .sidebar .brand .txt{font-family:'Fraunces',serif; font-size:25.5px; font-weight:700;}
+  .sidebar .brand .txt small{display:block; font-size:14px; font-weight:400; color:rgba(241,247,232,0.5); font-family:'Space Mono',monospace; letter-spacing:.05em; margin-top:2px;}
+  .rail-label{font-family:'Space Mono',monospace; font-size:15px; text-transform:uppercase; letter-spacing:.09em; color:rgba(241,247,232,0.4); margin:6px 10px 10px; font-weight:700;}
+  .mod-item{display:flex; align-items:center; gap:12px; padding:12px 12px; border-radius:4px; color:rgba(241,247,232,0.65);
+    font-size:20px; font-weight:500; margin-bottom:2px; cursor:pointer; transition:background .15s, color .15s; background:transparent; width:100%; text-align:left;}
+  .mod-item .num{font-family:'Space Mono',monospace; font-size:16px; width:18px; height:18px; border-radius:50%;
+    border:1.5px solid currentColor; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+  .mod-item:hover{background:rgba(241,247,232,0.06); color:var(--cream);}
+  .mod-item.active{background:var(--paprika); color:var(--paper);}
+  .mod-item.active .num{border-color:var(--paper);}
+  .subrail{margin:2px 0 14px 30px; display:flex; flex-direction:column; gap:1px;}
+  .sub-item{padding:6px 10px; border-radius:4px; font-size:18px; color:rgba(241,247,232,0.55); cursor:pointer;
+    transition:background .15s, color .15s; background:transparent; text-align:left; border:none; width:100%;}
+  .sub-item:hover{background:rgba(241,247,232,0.06); color:var(--cream);}
+  .sub-item.active{color:var(--turmeric); font-weight:600;}
+  .sidebar .spacer{flex:1;}
+  .sidebar .user-mini{display:flex; align-items:center; gap:9px; padding:10px; border-radius:5px; background:rgba(241,247,232,0.05);
+    margin-bottom:8px; border:1px dashed rgba(241,247,232,0.15);}
+  .avatar-sm{width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:15px;
+    font-weight:700; color:var(--paper); flex-shrink:0; font-family:'Fraunces',serif;}
+  .user-mini .info{overflow:hidden;}
+  .user-mini .name{font-size:18px; font-weight:600; color:var(--cream); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .user-mini .role{font-size:15px; color:rgba(241,247,232,0.5); font-family:'Space Mono',monospace;}
+  .logout-btn{background:transparent; color:rgba(241,247,232,0.55); font-size:18px; padding:8px 10px; display:flex; align-items:center;
+    gap:8px; border-radius:4px; width:100%; text-align:left; font-family:'Space Mono',monospace;}
+  .logout-btn:hover{background:rgba(241,247,232,0.06); color:var(--cream);}
+
+  .main{flex:1; min-width:0;}
+  .topbar{display:flex; align-items:center; justify-content:space-between; padding:26px 38px; border-bottom:1.5px dashed var(--line); background:var(--paper);}
+  .topbar .crumb{font-family:'Space Mono',monospace; font-size:16px; color:var(--ink-muted); margin-bottom:4px; letter-spacing:.06em; text-transform:uppercase; font-weight:700;}
+  .topbar h1{font-size:31.5px; margin:0; font-weight:600;}
+  .content{padding:34px 42px 64px;}
+  #pane.pane-transition{animation:pane-in 220ms cubic-bezier(.16,1,.3,1) both;}
+  @keyframes pane-in{from{opacity:0; transform:translateY(9px)} to{opacity:1; transform:translateY(0)}}
+  .tabs{display:flex; gap:0; border-bottom:1.5px solid var(--line); margin-bottom:22px;}
+  .tab-btn{background:transparent; padding:11px 4px; margin-right:26px; font-size:20.5px; font-weight:600; color:var(--ink-muted);
+    border-bottom:2.5px solid transparent; margin-bottom:-1.5px; transition:color .15s, border-color .15s; font-family:'Space Mono',monospace; letter-spacing:.02em;}
+  .tab-btn.active{color:var(--paprika); border-color:var(--paprika);}
+
+  .panel{background:var(--paper); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; border:1px solid var(--line);}
+  .panel-head{display:flex; align-items:center; justify-content:space-between; padding:19px 24px; gap:14px; flex-wrap:wrap;}
+  .panel-head strong{font-family:'Fraunces',serif; font-size:22.5px; font-weight:600;}
+  .search-box{display:flex; align-items:center; gap:8px; background:var(--cream); border-radius:4px; padding:8px 12px; min-width:220px; border:1px solid var(--line);}
+  .search-box input{border:none; background:transparent; outline:none; font-size:20px; width:100%; color:var(--ink);}
+  .btn-coral-sm{background:var(--paprika); color:var(--paper); font-size:18px; font-weight:700; padding:11px 18px; border-radius:4px;
+    display:inline-flex; align-items:center; gap:6px; transition:background .15s; font-family:'Space Mono',monospace; text-transform:uppercase; letter-spacing:.02em;}
+  .btn-coral-sm:hover{background:var(--paprika-dark);}
+  .btn-ghost-sm{background:transparent; color:var(--ink); font-size:18px; font-weight:700; padding:10px 16px; border-radius:4px;
+    border:1.5px solid var(--line); font-family:'Space Mono',monospace; text-transform:uppercase; letter-spacing:.02em;}
+  .btn-ghost-sm:hover{border-color:var(--paprika); color:var(--paprika);}
+  .btn-tiny{background:transparent; border:1.5px solid var(--line); padding:5px 10px; border-radius:4px; font-size:16px;
+    font-family:'Space Mono',monospace; text-transform:uppercase; color:var(--ink-muted); transition:all .15s;}
+  .btn-tiny:hover{border-color:var(--paprika); color:var(--paprika);}
+
+  table{width:100%; border-collapse:collapse;}
+  th{text-align:left; font-family:'Space Mono',monospace; font-size:15px; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--ink-muted); padding:16px 24px; font-weight:700; background:var(--cream); border-bottom:1px solid var(--line);}
+  td{padding:19px 24px; font-size:20.5px; border-bottom:1px dashed var(--line); vertical-align:middle;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:rgba(194,69,47,0.03);}
+  .user-cell{display:flex; align-items:center; gap:11px;}
+  .avatar{width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px;
+    font-weight:700; color:var(--paper); flex-shrink:0; font-family:'Fraunces',serif; border:2px solid var(--paper); box-shadow:0 0 0 1.5px currentColor;}
+  .u-name{font-weight:600; font-size:20.5px;}
+  .u-email{font-size:16.5px; color:var(--ink-muted); font-family:'Space Mono',monospace;}
+  .row-actions{display:flex; gap:6px; justify-content:flex-end;}
+  .icon-btn{background:transparent; border:1.5px solid var(--line); width:29px; height:29px; border-radius:4px; color:var(--ink-muted);
+    font-size:18px; display:flex; align-items:center; justify-content:center; transition:all .15s;}
+  .icon-btn:hover{border-color:var(--paprika); color:var(--paprika); background:rgba(194,69,47,0.05);}
+  .icon-btn.danger:hover{border-color:var(--danger); color:var(--danger); background:rgba(156,52,35,0.06);}
+  .empty-note{padding:34px 20px; text-align:center; color:var(--ink-muted); font-size:20px;}
+
+  .roles-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px;}
+  .role-card{background:var(--paper); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px 20px; border:1px solid var(--line); border-top:3px solid var(--paprika);}
+  .role-card .rc-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; gap:8px;}
+  .role-card h3{font-size:22.5px; margin:0; font-weight:600;}
+  .role-card p{font-size:18.5px; color:var(--ink-muted); margin:2px 0 14px; line-height:1.5; min-height:36px;}
+  .perm-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:7px;}
+  .perm-list li{font-size:18px; color:var(--ink); display:flex; align-items:center; gap:7px; font-family:'Space Mono',monospace;}
+  .perm-list li::before{content:"–"; color:var(--paprika); font-weight:700;}
+
+  .audit-item{display:flex; gap:16px; padding:17px 24px; align-items:flex-start;}
+  .audit-item + .audit-item{border-top:1px dashed var(--line);}
+  .audit-dot{width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:5px; border:1.5px solid var(--paper); box-shadow:0 0 0 1.5px currentColor;}
+  .audit-body{flex:1;}
+  .audit-top{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;}
+  .audit-actor{font-weight:600; font-size:20px;}
+  .audit-action{font-size:20px; color:var(--ink);}
+  .audit-time{font-size:16.5px; color:var(--ink-muted); margin-left:auto; font-family:'Space Mono',monospace;}
+  .audit-meta{font-size:16.5px; color:var(--ink-muted); margin-top:3px; font-family:'Space Mono',monospace;}
+
+  .stat-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:16px; margin-bottom:22px;}
+  .stat-card{background:var(--paper); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px 20px; border:1px solid var(--line);}
+  .stat-card .stat-label{font-family:'Space Mono',monospace; font-size:15px; color:var(--ink-muted); font-weight:700; text-transform:uppercase; letter-spacing:.05em;}
+  .stat-card .stat-value{font-size:45px; font-weight:700; font-family:'Fraunces',serif; margin-top:6px; color:var(--paprika);}
+  .stat-card .stat-sub{font-size:16.5px; color:var(--ink-muted); margin-top:2px;}
+
+  .modal-overlay{display:none; position:fixed; inset:0; background:rgba(31,51,25,0.5); z-index:50; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(2px);}
+  .modal-overlay.visible{display:flex;}
+  .modal{background:var(--paper); border-radius:4px 4px 0 0; width:100%; max-width:440px; padding:0; box-shadow:0 24px 60px rgba(10,6,3,0.35); animation:rise .35s cubic-bezier(.2,.8,.2,1);}
+  .modal-top{padding:24px 26px 18px; border-bottom:1.5px dashed var(--line);}
+  .modal-top h2{font-size:27px; margin:0 0 3px; font-weight:600;}
+  .modal-top .modal-sub{font-size:18px; color:var(--ink-muted); margin:0; font-family:'Space Mono',monospace;}
+  .modal-body{padding:22px 26px 6px;}
+  .modal-actions{display:flex; gap:10px; padding:18px 26px 26px;}
+  .modal-actions .btn-ghost-sm{flex:1; text-align:center;}
+  .modal-actions .btn-coral-sm{flex:1; justify-content:center;}
+  .price-preview{background:var(--cream); border:1px dashed var(--line); border-radius:6px; padding:12px 14px; margin-top:4px; font-family:'Space Mono',monospace; font-size:18px;}
+  .price-preview .pv-row{display:flex; justify-content:space-between; margin-bottom:4px; color:var(--ink-muted);}
+  .price-preview .pv-total{display:flex; justify-content:space-between; padding-top:6px; border-top:1px dashed var(--line); font-weight:700; color:var(--paprika); font-size:21px;}
+
+  .toast-wrap{position:fixed; bottom:24px; right:24px; z-index:60; display:flex; flex-direction:column; gap:8px;}
+  .toast{background:var(--espresso); color:var(--cream); padding:12px 18px; border-radius:4px; font-size:18.5px; box-shadow:0 12px 30px rgba(0,0,0,0.3);
+    display:flex; align-items:center; gap:9px; font-family:'Space Mono',monospace; border-left:3px solid var(--turmeric); animation:toast-in .25s ease-out;}
+  @keyframes toast-in{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);}}
+
+  .cal-head-row{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;}
+  .cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:6px;}
+  .cal-dow{font-family:'Space Mono',monospace; font-size:15px; text-transform:uppercase; color:var(--ink-muted); text-align:center; padding-bottom:4px;}
+  .cal-cell{min-height:104px; border:1px solid var(--line); border-radius:6px; padding:8px; background:var(--paper); position:relative; cursor:pointer; transition:border-color .15s;}
+  .cal-cell.empty{background:transparent; border:none; cursor:default;}
+  .cal-cell.today{border-color:var(--paprika); box-shadow:0 0 0 1px var(--paprika);}
+  .cal-cell.selected{background:rgba(194,69,47,0.06); border-color:var(--paprika);}
+  .cal-cell:not(.empty):hover{border-color:var(--turmeric);}
+  .cal-daynum{font-family:'Space Mono',monospace; font-size:16.5px; color:var(--ink-muted);}
+  .cal-dots{display:flex; gap:3px; margin-top:6px; flex-wrap:wrap;}
+  .cal-dot{width:9px; height:9px; border-radius:50%;}
+  .cal-conflict-flag{position:absolute; top:5px; right:5px; font-size:15px;}
+  .day-detail{margin-top:18px;}
+
+  .prog-wrap{height:9px; background:var(--cream); border-radius:100px; overflow:hidden; border:1px solid var(--line); flex:1;}
+  .prog-bar{height:100%; background:var(--cardamom); transition:width .3s;}
+  .checklist-row{display:flex; align-items:center; gap:12px; padding:14px 24px; font-size:20.5px;}
+  .checklist-row + .checklist-row{border-top:1px dashed var(--line);}
+  .checklist-row input[type=checkbox]{width:19px; height:19px; accent-color:var(--paprika);}
+  .checklist-row.done span{text-decoration:line-through; color:var(--ink-muted);}
+
+  .barchart-row{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+  .barchart-label{width:185px; font-size:16.5px; font-family:'Space Mono',monospace; color:var(--ink-muted); flex-shrink:0;}
+  .barchart-track{flex:1; background:var(--cream); border-radius:4px; overflow:hidden; height:16px; border:1px solid var(--line);}
+  .barchart-fill{height:100%; background:var(--paprika);}
+  .barchart-val{width:26px; text-align:right; font-family:'Space Mono',monospace; font-size:16.5px; flex-shrink:0;}
+
+  .conflict-banner{background:rgba(156,52,35,0.07); border:1px solid var(--danger); color:var(--danger); border-radius:6px; padding:10px 14px; font-size:18px; margin-bottom:16px; display:flex; align-items:center; gap:8px;}
+
+  @media (max-width:860px){
+    #app-shell.visible{flex-direction:column;}
+    .sidebar{width:100%; min-height:auto; position:relative;}
+    .subrail{margin-left:14px;}
+    .content{padding:18px;}
+    .topbar{padding:16px 18px;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= LOGIN ================= -->
+<div id="login-screen">
+  <div class="ticket">
+    <div class="ticket-top">
+      <div class="ticket-num"><span>ACCESS SLIP</span><span id="ticket-date">NO. 0417</span></div>
+      <div class="ticket-brand"><div class="mark">SC</div><div class="word">SCIMS</div></div>
+      <div class="ticket-sub">Spice Cuisine Integrated Mgmt. System</div>
+    </div>
+    <div class="ticket-body">
+      <h1>Sign in to your workspace</h1>
+      <div class="login-error" id="login-error"><span>⚠</span><span class="msg"></span></div>
+      <div class="field">
+        <label>Email address</label>
+        <input id="login-email" type="email" placeholder="you@spicecuisine.com">
+      </div>
+      <div class="field password-field">
+        <label>Password</label>
+        <input id="login-pass" type="password" placeholder="Enter your password" autocomplete="current-password">
+        <button class="password-toggle" id="password-toggle" type="button" aria-label="Show password" aria-pressed="false" onclick="togglePassword()">Show</button>
+      </div>
+      <button class="btn-primary" onclick="doLogin()">Sign In →</button>
+      <div class="sample-toggle" onclick="toggleSamples()">Prototype note: your role is detected from your email — tap to see sample accounts ▾</div>
+      <div class="sample-list" id="sample-list"></div>
+    </div>
+    <div class="ticket-foot">
+      <div class="perf"></div>
+      <span>ROLE IS ASSIGNED BY YOUR ADMINISTRATOR IN USER ACCOUNTS</span>
+    </div>
+  </div>
+</div>
+
+<!-- ================= APP SHELL ================= -->
+<div id="app-shell">
+  <aside class="sidebar">
+    <div class="brand"><div class="mark">SC</div><div class="txt">SCIMS<small>MODULE RAIL</small></div></div>
+    <div class="rail-label">System Modules</div>
+    <nav id="module-nav"></nav>
+    <div class="spacer"></div>
+    <div class="user-mini">
+      <div class="avatar-sm" id="mini-avatar" style="background:var(--paprika);">JP</div>
+      <div class="info"><div class="name" id="mini-name">John Pamintuan</div><div class="role" id="mini-role">Owner</div></div>
+    </div>
+    <button class="logout-btn" onclick="doLogout()">◄ LOG OUT</button>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div><div class="crumb" id="crumb">Module 1 · User Management</div><h1 id="view-title">Dashboard</h1></div>
+      <span class="stamp r-1" id="topbar-role-badge" style="color:var(--paprika);">Owner</span>
+    </div>
+    <div class="content">
+      <div class="tabs" id="tabs-row"></div>
+      <div id="pane"></div>
+    </div>
+  </main>
+</div>
+
+<!-- ADD/EDIT USER MODAL -->
+<div class="modal-overlay" id="user-modal">
+  <div class="modal">
+    <div class="modal-top"><h2 id="user-modal-title">Add new account</h2><p class="modal-sub" id="user-modal-sub">CREATES A ROLE-BASED LOGIN</p></div>
+    <div class="modal-body">
+      <div class="field"><label>Full name</label><input id="nu-name" placeholder="e.g. Maria Santos"></div>
+      <div class="field"><label>Email address</label><input id="nu-email" placeholder="e.g. maria@spicecuisine.com"></div>
+      <div class="field"><label>Password <span id="nu-password-note">(required for new accounts)</span></label><input id="nu-password" type="password" minlength="8" placeholder="At least 8 characters"></div>
+      <div class="field"><label>Role</label>
+        <select id="nu-role">
+          <option>Owner</option><option>Sales Executive</option><option>Operations Manager</option><option>Kitchen Manager</option>
+          <option>Purchasing Officer</option><option>Accounting Staff</option><option>Administrative Staff</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions"><button class="btn-ghost-sm" onclick="closeUserModal()">Cancel</button><button class="btn-coral-sm" onclick="submitUserModal()">Save</button></div>
+  </div>
+</div>
+
+<!-- ADD CUSTOMER MODAL -->
+<div class="modal-overlay" id="customer-modal">
+  <div class="modal">
+    <div class="modal-top"><h2>Add customer</h2><p class="modal-sub">CREATES A NEW CUSTOMER RECORD</p></div>
+    <div class="modal-body">
+      <div class="field"><label>Name / Company</label><input id="nc-name" placeholder="e.g. Villareal Family"></div>
+      <div class="field"><label>Contact person</label><input id="nc-contact" placeholder="e.g. Ana Villareal"></div>
+      <div class="field"><label>Phone</label><input id="nc-phone" placeholder="e.g. 0917-123-4567"></div>
+      <div class="field"><label>Email</label><input id="nc-email" placeholder="e.g. ana@email.com"></div>
+      <div class="field"><label>Source</label>
+        <select id="nc-source"><option>Referral</option><option>Facebook</option><option>Phone Call</option><option>Email</option><option>Corporate Sales Visit</option></select>
+      </div>
+    </div>
+    <div class="modal-actions"><button class="btn-ghost-sm" onclick="closeModal('customer-modal')">Cancel</button><button class="btn-coral-sm" onclick="submitCustomer()">Create Customer</button></div>
+  </div>
+</div>
+
+<!-- QUOTATION MODAL -->
+<div class="modal-overlay" id="quote-modal">
+  <div class="modal">
+    <div class="modal-top"><h2 id="quote-modal-title">New quotation</h2><p class="modal-sub">PRICING CALCULATES AUTOMATICALLY</p></div>
+    <div class="modal-body">
+      <div class="field"><label>Customer</label><input id="nq-customer" placeholder="e.g. Villareal Family"></div>
+      <div class="field"><label>Event date</label><input id="nq-date" type="date"></div>
+      <div class="field"><label>Guest count</label><input id="nq-guests" type="number" value="100" min="1" oninput="updateQuotePreview()"></div>
+      <div class="field"><label>Package</label>
+        <select id="nq-package" onchange="updateQuotePreview()">
+          <option value="Silver">Silver — ₱5,000 base + ₱850/head</option>
+          <option value="Gold">Gold — ₱8,000 base + ₱1,150/head</option>
+          <option value="Platinum">Platinum — ₱12,000 base + ₱1,450/head</option>
+        </select>
+      </div>
+      <div class="price-preview" id="quote-price-preview"></div>
+    </div>
+    <div class="modal-actions"><button class="btn-ghost-sm" onclick="closeModal('quote-modal')">Cancel</button><button class="btn-coral-sm" onclick="submitQuote()">Save Quotation</button></div>
+  </div>
+</div>
+
+<!-- BOOKING MODAL -->
+<div class="modal-overlay" id="booking-modal">
+  <div class="modal">
+    <div class="modal-top"><h2>New booking</h2><p class="modal-sub">MANUAL BOOKING ENTRY</p></div>
+    <div class="modal-body">
+      <div class="field"><label>Customer</label><input id="nb-customer" placeholder="e.g. Villareal Family"></div>
+      <div class="field"><label>Event date</label><input id="nb-date" type="date" oninput="checkNewBookingConflict()"></div>
+      <div style="display:flex; gap:14px;">
+        <div class="field" style="flex:1;"><label>Start time</label><input id="nb-time" type="time" value="12:00" oninput="checkNewBookingConflict()"></div>
+        <div class="field" style="flex:1;"><label>End time</label><input id="nb-end-time" type="time" value="16:00" oninput="checkNewBookingConflict()"></div>
+      </div>
+      <div id="nb-conflict-warning" class="conflict-banner" style="display:none;"></div>
+      <div class="field"><label>Venue</label><input id="nb-venue" placeholder="e.g. Grand Hall, QC"></div>
+      <div class="field"><label>Guest count</label><input id="nb-guests" type="number" value="100" min="1"></div>
+    </div>
+    <div class="modal-actions"><button class="btn-ghost-sm" onclick="closeModal('booking-modal'); document.getElementById('nb-conflict-warning').style.display='none'; document.getElementById('nb-submit-btn').disabled=false; document.getElementById('nb-submit-btn').style.opacity=1;">Cancel</button><button class="btn-coral-sm" id="nb-submit-btn" onclick="submitBooking()">Create Booking</button></div>
+  </div>
+</div>
+
+<!-- ASSIGN STAFF MODAL -->
+<div class="modal-overlay" id="assign-modal">
+  <div class="modal">
+    <div class="modal-top"><h2>Assign to event</h2><p class="modal-sub" id="assign-modal-sub">STAFF</p></div>
+    <div class="modal-body">
+      <div class="field"><label>Select event</label><select id="assign-booking"></select></div>
+    </div>
+    <div class="modal-actions"><button class="btn-ghost-sm" onclick="closeModal('assign-modal')">Cancel</button><button class="btn-coral-sm" onclick="submitAssign()">Assign</button></div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<script>
+const TODAY = new Date(2026,7,5); // fixed reference date for deterministic demo
+
+// ---------------- MODULES ----------------
+const modules = [
+  {n:1, name:"User Management", tabs:[{k:'dashboard',l:'Dashboard'},{k:'accounts',l:'User Accounts'},{k:'roles',l:'Role Mgmt.'},{k:'audit',l:'Audit Logs'}]},
+  {n:2, name:"Customer Records", tabs:[{k:'customers',l:'Customers'},{k:'inquiries',l:'Inquiries'}]},
+  {n:3, name:"Quotation Management", tabs:[{k:'quotations',l:'Quotations'}]},
+  {n:4, name:"Bookings & Scheduling", tabs:[{k:'bookings',l:'Bookings'},{k:'calendar',l:'Calendar'}]},
+  {n:5, name:"Operations & Staff Mgmt.", tabs:[{k:'staff',l:'Staff'},{k:'checklist',l:'Checklists'}]},
+  {n:6, name:"Reporting & Dashboard", tabs:[{k:'reports',l:'Reports'}]},
+];
+
+// ---------------- ROLE DATA ----------------
+const roleColors = {
+  "Owner":"#C2452F","General Manager":"#C2452F","Sales Executive":"#B37F1E",
+  "Operations Manager":"#2F6B57","Kitchen Manager":"#5A9642","Purchasing Officer":"#35607A",
+  "Accounting Staff":"#6B4A7A","Administrative Staff":"#6E7A2E"
+};
+const roleDescriptions = {
+  "Owner":"Full system access. Oversees operations, approves bookings, reviews all reports.",
+  "Sales Executive":"Handles inquiries, prepares quotations, confirms bookings, manages customers.",
+  "Operations Manager":"Coordinates event execution, manpower, logistics and schedules.",
+  "Kitchen Manager":"Oversees food prep, kitchen scheduling and menu implementation.",
+  "Purchasing Officer":"Procures ingredients and supplies, coordinates with suppliers.",
+  "Accounting Staff":"Handles invoicing and collections through the Q&E Accounting System."
+};
+const rolePerms = {
+  "Owner":["View all modules","Approve bookings","Manage user accounts","View financial reports"],
+  "Sales Executive":["Manage customers","Create quotations","View booking calendar"],
+  "Operations Manager":["Manage event schedules","Assign staff","View preparation checklists"],
+  "Kitchen Manager":["View event menus","Update production schedule","View notifications"],
+  "Purchasing Officer":["View procurement lists","Manage supplier records","Update stock reorders"],
+  "Accounting Staff":["View booking references","Monitor payment status","Q&E integration access"]
+};
+
+// ---------------- MOCK DATA ----------------
+let users = [
+  {id:1, name:"John Pamintuan", email:"owner@spicecuisine.com", role:"Owner", dept:"Management", status:"Active", last:"Today, 8:02 AM"},
+  {id:2, name:"Andrea Reyes", email:"andrea.r@spicecuisine.com", role:"Sales Executive", dept:"Sales", status:"Active", last:"Today, 7:41 AM"},
+  {id:3, name:"Marco Villanueva", email:"marco.v@spicecuisine.com", role:"Operations Manager", dept:"Operations", status:"Active", last:"Yesterday, 5:18 PM"},
+  {id:4, name:"Liza Cortez", email:"liza.c@spicecuisine.com", role:"Kitchen Manager", dept:"Kitchen", status:"Active", last:"Yesterday, 3:02 PM"},
+  {id:5, name:"Ramon Tolentino", email:"ramon.t@spicecuisine.com", role:"Purchasing Officer", dept:"Purchasing", status:"Deactivated", last:"3 days ago"},
+  {id:6, name:"Bea Fernandez", email:"bea.f@spicecuisine.com", role:"Accounting Staff", dept:"Accounting", status:"Active", last:"Today, 9:15 AM"},
+  {id:7, name:"Carlo Dizon", email:"carlo.d@spicecuisine.com", role:"Sales Executive", dept:"Sales", status:"Active", last:"2 days ago"}
+];
+let nextUserId = 8;
+
+let auditLog = [
+  {actor:"John Pamintuan", action:"logged in", meta:"Owner · IP 192.168.1.4", time:"8:02 AM"},
+  {actor:"John Pamintuan", action:"deactivated account for Ramon Tolentino", meta:"Reason: extended leave", time:"Yesterday, 4:47 PM"},
+  {actor:"Andrea Reyes", action:"created quotation Q-2201 for Ana Villareal", meta:"Sales module", time:"Yesterday, 2:10 PM"},
+];
+
+let customers = [
+  {id:1, name:"Ana Villareal", contact:"Ana Villareal", phone:"0917-201-4432", email:"ana.villareal@gmail.com", source:"Referral", history:["Q-2201"]},
+  {id:2, name:"TechCorp Solutions Inc.", contact:"Mark Uy", phone:"0918-552-1090", email:"mark.uy@techcorp.ph", source:"Corporate Sales Visit", history:["Q-2202"]},
+  {id:3, name:"Cruz Family", contact:"Liza Cruz", phone:"0920-334-7712", email:"liza.cruz@gmail.com", source:"Facebook", history:["Q-2203"]},
+  {id:4, name:"Reyes Family", contact:"Noel Reyes", phone:"0928-119-0043", email:"noel.reyes@gmail.com", source:"Phone Call", history:["Q-2204"]},
+  {id:5, name:"Dela Cruz Family", contact:"Ella Dela Cruz", phone:"0917-880-2231", email:"delacruz.fam@gmail.com", source:"Referral", history:["Q-2205"]},
+];
+let nextCustomerId = 6;
+
+let inquiries = [
+  {id:1, name:"Santos-Ramos Wedding", channel:"Facebook Messenger", eventType:"Wedding", date:"2026-09-10", guests:200, status:"New"},
+  {id:2, name:"Barangay Fiesta Committee", channel:"Phone Call", eventType:"Community Event", date:"2026-09-22", guests:300, status:"New"},
+  {id:3, name:"Multiply Corp Year-End Party", channel:"Email", eventType:"Corporate", date:"2026-12-14", guests:90, status:"Quoted"},
+];
+let nextInquiryId = 4;
+
+const packages = {
+  Silver:{base:5000, perHead:850}, Gold:{base:8000, perHead:1150}, Platinum:{base:12000, perHead:1450}
+};
+function calcTotal(pkg, guests){ const p = packages[pkg]; return p.base + p.perHead*guests; }
+
+let quotations = [
+  {id:"Q-2201", customer:"Ana Villareal", eventDate:"2026-08-12", guests:150, package:"Platinum", total:calcTotal("Platinum",150), status:"Accepted", validUntil:"2026-07-30"},
+  {id:"Q-2202", customer:"TechCorp Solutions Inc.", eventDate:"2026-08-12", guests:60, package:"Gold", total:calcTotal("Gold",60), status:"Accepted", validUntil:"2026-08-01"},
+  {id:"Q-2203", customer:"Cruz Family", eventDate:"2026-08-20", guests:100, package:"Gold", total:calcTotal("Gold",100), status:"Accepted", validUntil:"2026-08-05"},
+  {id:"Q-2204", customer:"Reyes Family", eventDate:"2026-08-28", guests:80, package:"Silver", total:calcTotal("Silver",80), status:"Sent", validUntil:"2026-08-15"},
+  {id:"Q-2205", customer:"Dela Cruz Family", eventDate:"2026-07-15", guests:120, package:"Platinum", total:calcTotal("Platinum",120), status:"Accepted", validUntil:"2026-07-01"},
+];
+let nextQuoteNum = 2206;
+
+let bookings = [
+  {id:"BK-1001", customer:"Ana Villareal", eventDate:"2026-08-12", eventTime:"14:00", eventEndTime:"18:00", venue:"Grand Hall, Quezon City", guests:150, status:"Confirmed", quoteRef:"Q-2201"},
+  {id:"BK-1002", customer:"TechCorp Solutions Inc.", eventDate:"2026-08-12", eventTime:"16:00", eventEndTime:"20:00", venue:"TechCorp HQ Auditorium", guests:60, status:"Reserved", quoteRef:"Q-2202"},
+  {id:"BK-1003", customer:"Cruz Family", eventDate:"2026-08-20", eventTime:"10:00", eventEndTime:"14:00", venue:"Cruz Residence, Marikina", guests:100, status:"Ongoing Preparation", quoteRef:"Q-2203"},
+  {id:"BK-1004", customer:"Reyes Family", eventDate:"2026-08-28", eventTime:"13:00", eventEndTime:"17:00", venue:"St. Peter Parish Hall", guests:80, status:"Pending Confirmation", quoteRef:"Q-2204"},
+  {id:"BK-1005", customer:"Dela Cruz Family", eventDate:"2026-07-15", eventTime:"11:00", eventEndTime:"15:00", venue:"Seaside Pavilion, Cavite", guests:120, status:"Completed", quoteRef:"Q-2205"},
+];
+let nextBookingNum = 1006;
+const bookingStatuses = ["Inquiry","Quotation Sent","Pending Confirmation","Reserved","Confirmed","Ongoing Preparation","Completed","Cancelled","Archived"];
+const statusColor = {
+  "Inquiry":"var(--ink-muted)","Quotation Sent":"var(--turmeric)","Pending Confirmation":"var(--olive)","Reserved":"var(--indigo)",
+  "Confirmed":"var(--cardamom)","Ongoing Preparation":"var(--paprika)","Completed":"var(--bayleaf)","Cancelled":"var(--danger)","Archived":"var(--ink-muted)"
+};
+
+let staff = [
+  {id:1, name:"Marco Villanueva", role:"Operations Manager", dept:"Operations", availability:"Assigned", assignedTo:"BK-1001"},
+  {id:2, name:"Liza Cortez", role:"Kitchen Manager", dept:"Kitchen", availability:"Assigned", assignedTo:"BK-1003"},
+  {id:3, name:"Ramon Tolentino", role:"Purchasing Officer", dept:"Purchasing", availability:"Off", assignedTo:null},
+  {id:4, name:"Carlo Dizon", role:"Sales Executive", dept:"Sales", availability:"Available", assignedTo:null},
+  {id:5, name:"Bea Fernandez", role:"Accounting Staff", dept:"Accounting", availability:"Available", assignedTo:null},
+  {id:6, name:"Jomari Santos", role:"Service Crew", dept:"Operations", availability:"Available", assignedTo:null},
+  {id:7, name:"Nica Ramos", role:"Service Crew", dept:"Operations", availability:"Assigned", assignedTo:"BK-1001"},
+];
+
+const checklistItems = ["Menu finalized","Procurement list generated","Staff assigned","Equipment prepared","Supplier deliveries confirmed","Client walkthrough completed"];
+let checklistState = {
+  "BK-1001": [true,true,true,true,true,false],
+  "BK-1003": [true,true,false,false,false,false],
+  "BK-1002": [true,false,false,false,false,false],
+  "BK-1004": [false,false,false,false,false,false],
+};
+
+let currentUser = {name:"John Pamintuan", role:"Owner"};
+let activeModule = 1;
+let activeTabByModule = {1:'dashboard',2:'customers',3:'quotations',4:'bookings',5:'staff',6:'reports'};
+let editingUserId = null;
+let selectedCalDay = null;
+let apiReady = false;
+let saveTimer = null;
+
+function currentState(){ return {users, customers, inquiries, quotations, bookings, staff, checklistState, auditLog}; }
+async function loadState(){
+  const response = await fetch('/api/state');
+  const body = await response.json();
+  if(!response.ok) throw new Error(body.error?.message || 'Could not load saved data.');
+  ({users, customers, inquiries, quotations, bookings, staff, checklistState, auditLog} = body.state);
+  nextUserId = Math.max(0,...users.map(u=>u.id))+1;
+  nextCustomerId = Math.max(0,...customers.map(c=>c.id))+1;
+  nextQuoteNum = Math.max(2205,...quotations.map(q=>Number(String(q.id).replace('Q-',''))))+1;
+  nextBookingNum = Math.max(1005,...bookings.map(b=>Number(String(b.id).replace('BK-',''))))+1;
+}
+function queueSave(){
+  if(!apiReady || currentUser.role !== 'Owner') return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async ()=>{
+    try {
+      const response = await fetch('/api/state', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({state:currentState()})});
+      if(!response.ok) console.error('Could not save changes.');
+    } catch(error) { console.error('Could not save changes.', error); }
+  }, 300);
+}
+
+// ---------------- HELPERS ----------------
+function initials(name){ return name.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase(); }
+function colorFor(role){ return roleColors[role] || "#C2452F"; }
+function peso(n){ return "₱" + n.toLocaleString("en-PH"); }
+function fmtDate(iso){ const d = new Date(iso+"T00:00:00"); return d.toLocaleDateString("en-PH",{month:'short',day:'numeric',year:'numeric'}); }
+function daysBetween(a,b){ return Math.ceil((a-b)/86400000); }
+function showToast(msg){
+  const wrap = document.getElementById('toast-wrap');
+  const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
+  wrap.appendChild(t);
+  setTimeout(()=>{ t.style.transition='opacity .3s'; t.style.opacity='0'; setTimeout(()=>t.remove(),300); }, 3000);
+  queueSave();
+}
+function logAudit(action, meta){
+  auditLog.unshift({actor:currentUser.name, action:action, meta:meta||"", time:"Just now"});
+}
+function closeModal(id){ document.getElementById(id).classList.remove('visible'); }
+function togglePassword(){
+  const input = document.getElementById('login-pass');
+  const toggle = document.getElementById('password-toggle');
+  const visible = input.type === 'text';
+  input.type = visible ? 'password' : 'text';
+  toggle.textContent = visible ? 'Show' : 'Hide';
+  toggle.setAttribute('aria-label', visible ? 'Show password' : 'Hide password');
+  toggle.setAttribute('aria-pressed', String(!visible));
+}
+
+// ---------------- LOGIN (email auto-detect) ----------------
+document.getElementById('ticket-date').textContent = 'NO. ' + (1000 + Math.floor(Math.random()*8999));
+
+function toggleSamples(){
+  const list = document.getElementById('sample-list');
+  if(list.style.display === 'block'){ list.style.display = 'none'; return; }
+  list.innerHTML = users.map(u=>`
+    <div class="sample-row" onclick="fillSample('${u.email}')">
+      <span>${u.email}</span><span class="r">${u.role}${u.status==='Deactivated'?' · deactivated':''}</span>
+    </div>`).join('');
+  list.style.display = 'block';
+}
+function fillSample(email){ document.getElementById('login-email').value = email; }
+
+async function doLogin(){
+  const email = document.getElementById('login-email').value.trim().toLowerCase();
+  const password = document.getElementById('login-pass').value;
+  const errBox = document.getElementById('login-error');
+  if(!email){ errBox.style.display='flex'; errBox.querySelector('.msg').textContent = "Please enter your email address."; return; }
+  try {
+    const response = await fetch('/api/auth/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email,password})});
+    const body = await response.json();
+    if(!response.ok) throw new Error(body.error?.message || 'Could not sign in.');
+    currentUser = body.user;
+    await loadState();
+    apiReady = true;
+  } catch(error) {
+    errBox.style.display='flex';
+    errBox.querySelector('.msg').textContent = error.message;
+    return;
+  }
+  errBox.style.display='none';
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-shell').classList.add('visible');
+  document.getElementById('mini-name').textContent = currentUser.name;
+  document.getElementById('mini-role').textContent = currentUser.role;
+  document.getElementById('mini-avatar').textContent = initials(currentUser.name);
+  document.getElementById('mini-avatar').style.background = colorFor(currentUser.role);
+  document.getElementById('topbar-role-badge').textContent = currentUser.role;
+  document.getElementById('topbar-role-badge').style.color = colorFor(currentUser.role);
+  logAudit("logged in", `${currentUser.role} · matched via ${email}`);
+  activeModule = 1;
+  renderModuleNav();
+  renderPane();
+  showToast(`Signed in as ${currentUser.name} (${currentUser.role})`);
+}
+function doLogout(){
+  logAudit("logged out", `${currentUser.role} · session ended`);
+  document.getElementById('app-shell').classList.remove('visible');
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('login-error').style.display = 'none';
+  document.getElementById('sample-list').style.display = 'none';
+  apiReady = false;
+  fetch('/api/auth/logout', {method:'POST'});
+}
+
+// ---------------- NAV ----------------
+function renderModuleNav(){
+  const nav = document.getElementById('module-nav');
+  const mod = modules.find(m=>m.n===activeModule);
+  nav.innerHTML = modules.map(m=>`
+    <button class="mod-item ${m.n===activeModule?'active':''}" onclick="selectModule(${m.n})">
+      <span class="num">${m.n}</span><span>${m.name}</span>
+    </button>
+    ${m.n===activeModule && m.tabs.length>1 ? `
+    <div class="subrail">
+      ${m.tabs.map(t=>`<button class="sub-item ${activeTabByModule[m.n]===t.k?'active':''}" onclick="selectTab('${t.k}')">${t.l}</button>`).join('')}
+    </div>` : ''}
+  `).join('');
+}
+function selectModule(n){
+  activeModule = n;
+  renderModuleNav();
+  renderPane();
+}
+function selectTab(key){
+  activeTabByModule[activeModule] = key;
+  renderModuleNav();
+  renderPane();
+}
+
+function renderPane(){
+  const mod = modules.find(m=>m.n===activeModule);
+  document.getElementById('crumb').textContent = `Module ${mod.n} · ${mod.name}`;
+  const tabsRow = document.getElementById('tabs-row');
+  if(mod.tabs.length>1){
+    tabsRow.style.display='flex';
+    tabsRow.innerHTML = mod.tabs.map(t=>`<button class="tab-btn ${activeTabByModule[mod.n]===t.k?'active':''}" onclick="selectTab('${t.k}')">${t.l.toUpperCase()}</button>`).join('');
+  } else {
+    tabsRow.style.display='none'; tabsRow.innerHTML='';
+  }
+  const tabKey = activeTabByModule[mod.n];
+  const titleMap = {dashboard:"Dashboard",accounts:"User Accounts",roles:"Role Management",audit:"Audit Logs",
+    customers:"Customers",inquiries:"Inquiries",quotations:"Quotations",bookings:"Bookings",calendar:"Event Calendar",
+    staff:"Staff",checklist:"Preparation Checklists",reports:"Reports & Dashboard"};
+  document.getElementById('view-title').textContent = titleMap[tabKey] || mod.name;
+  const key = mod.n+'-'+tabKey;
+  (paneFns[key] || paneFns['1-dashboard'])();
+  const pane = document.getElementById('pane');
+  pane.classList.remove('pane-transition');
+  void pane.offsetWidth;
+  pane.classList.add('pane-transition');
+}
+
+// ================= MODULE 1: USER MANAGEMENT =================
+function pane_1_dashboard(){
+  document.getElementById('pane').innerHTML = `
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-label">Total Accounts</div><div class="stat-value">${users.length}</div><div class="stat-sub">Across ${new Set(users.map(u=>u.role)).size} roles</div></div>
+      <div class="stat-card"><div class="stat-label">Active Accounts</div><div class="stat-value">${users.filter(u=>u.status==='Active').length}</div><div class="stat-sub">Currently enabled</div></div>
+      <div class="stat-card"><div class="stat-label">Deactivated</div><div class="stat-value">${users.filter(u=>u.status==='Deactivated').length}</div><div class="stat-sub">Access revoked</div></div>
+      <div class="stat-card"><div class="stat-label">Audit Events Logged</div><div class="stat-value">${auditLog.length}</div><div class="stat-sub">Logins, edits, approvals</div></div>
+    </div>
+    <div class="panel"><div class="panel-head"><strong>Recent Activity</strong></div><div class="perf"></div>
+      <div>${auditRows(auditLog.slice(0,4))}</div>
+    </div>`;
+}
+function auditRows(list){
+  return list.map(a=>`
+    <div class="audit-item"><div class="audit-dot" style="color:var(--paprika); background:var(--paprika);"></div>
+      <div class="audit-body"><div class="audit-top"><span class="audit-actor">${a.actor}</span><span class="audit-action">${a.action}</span><span class="audit-time">${a.time}</span></div>
+      <div class="audit-meta">${a.meta}</div></div></div>`).join('');
+}
+
+function pane_1_accounts(){
+  document.getElementById('pane').innerHTML = `
+    <div class="panel">
+      <div class="panel-head">
+        <div class="search-box"><span>⌕</span><input id="user-search" placeholder="Search by name, email, or role..." oninput="renderUsersList()"></div>
+        <button class="btn-coral-sm" onclick="openUserModal()">+ Add User</button>
+      </div>
+      <div class="perf"></div>
+      <table><thead><tr><th>Name</th><th>Role</th><th>Department</th><th>Status</th><th>Last Login</th><th></th></tr></thead>
+      <tbody id="users-tbody"></tbody></table>
+      <div id="users-empty" class="empty-note" style="display:none;">No matching accounts found.</div>
+    </div>`;
+  renderUsersList();
+}
+function renderUsersList(){
+  const q = (document.getElementById('user-search')?.value || '').toLowerCase();
+  const tbody = document.getElementById('users-tbody');
+  const filtered = users.filter(u => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.role.toLowerCase().includes(q));
+  document.getElementById('users-empty').style.display = filtered.length ? 'none':'block';
+  tbody.innerHTML = filtered.map(u=>`
+    <tr><td><div class="user-cell"><div class="avatar" style="background:${colorFor(u.role)};">${initials(u.name)}</div>
+      <div><div class="u-name">${u.name}</div><div class="u-email">${u.email}</div></div></div></td>
+      <td><span class="stamp r-1" style="color:${colorFor(u.role)};">${u.role}</span></td>
+      <td style="color:var(--ink-muted);">${u.dept}</td>
+      <td><span class="stamp r-2" style="color:${u.status==='Active'?'var(--cardamom)':'var(--danger)'};">${u.status}</span></td>
+      <td class="mono" style="color:var(--ink-muted); font-size:15px;">${u.last}</td>
+      <td><div class="row-actions">
+        <button class="icon-btn" title="Edit role/email" onclick="openUserModal(${u.id})">✎</button>
+        <button class="icon-btn" title="Toggle status" onclick="toggleStatus(${u.id})">⇄</button>
+        <button class="icon-btn danger" title="Remove account" onclick="removeUser(${u.id})">✕</button>
+      </div></td></tr>`).join('');
+}
+function toggleStatus(id){
+  const u = users.find(x=>x.id===id);
+  u.status = u.status === "Active" ? "Deactivated" : "Active";
+  logAudit(`${u.status === "Active" ? "reactivated" : "deactivated"} account for ${u.name}`, `Role: ${u.role}`);
+  renderUsersList();
+  showToast(`${u.name} ${u.status === "Active" ? "reactivated" : "deactivated"}`);
+}
+function removeUser(id){
+  const u = users.find(x=>x.id===id);
+  if(!confirm(`Remove ${u.name}'s account? This cannot be undone in a live system.`)) return;
+  users = users.filter(x=>x.id!==id);
+  logAudit(`removed account for ${u.name}`, `Role: ${u.role}`);
+  renderUsersList();
+  showToast(`${u.name}'s account removed`);
+}
+function openUserModal(id){
+  editingUserId = id || null;
+  const isEdit = !!id;
+  document.getElementById('user-modal-title').textContent = isEdit ? 'Edit account' : 'Add new account';
+  document.getElementById('user-modal-sub').textContent = isEdit ? 'REASSIGN ROLE OR EMAIL' : 'CREATES A ROLE-BASED LOGIN';
+  document.getElementById('nu-password-note').textContent = isEdit ? '(leave blank to keep current password)' : '(required for new accounts)';
+  if(isEdit){
+    const u = users.find(x=>x.id===id);
+    document.getElementById('nu-name').value = u.name;
+    document.getElementById('nu-email').value = u.email;
+    document.getElementById('nu-role').value = u.role;
+    document.getElementById('nu-password').value = '';
+  } else {
+    document.getElementById('nu-name').value=''; document.getElementById('nu-email').value=''; document.getElementById('nu-role').value='Sales Executive'; document.getElementById('nu-password').value='';
+  }
+  document.getElementById('user-modal').classList.add('visible');
+}
+function closeUserModal(){ document.getElementById('user-modal').classList.remove('visible'); editingUserId=null; }
+function submitUserModal(){
+  const name = document.getElementById('nu-name').value.trim();
+  const email = document.getElementById('nu-email').value.trim();
+  const role = document.getElementById('nu-role').value;
+  const password = document.getElementById('nu-password').value;
+  if(!name || !email){ showToast("Please fill in name and email"); return; }
+  if(!editingUserId && password.length < 8){ showToast("New accounts need a password of at least 8 characters"); return; }
+  if(editingUserId){
+    const u = users.find(x=>x.id===editingUserId);
+    const oldRole = u.role;
+    u.name=name; u.email=email; u.role=role; u.dept = role.split(" ")[0];
+    if(password) u.password=password;
+    logAudit(`updated account for ${name}`, oldRole!==role ? `Role changed: ${oldRole} → ${role}` : `Email/details updated`);
+    showToast(`${name}'s account updated`);
+  } else {
+    users.push({id: nextUserId++, name, email, role, dept: role.split(" ")[0], status:"Active", last:"Never", password});
+    logAudit(`created account for ${name}`, `Role: ${role}`);
+    showToast(`${name}'s account created`);
+  }
+  closeUserModal();
+  renderUsersList();
+}
+
+function pane_1_roles(){
+  document.getElementById('pane').innerHTML = `<div class="roles-grid">${
+    Object.keys(roleDescriptions).map(role=>{
+      const count = users.filter(u=>u.role===role).length;
+      return `<div class="role-card" style="border-top-color:${colorFor(role)};">
+        <div class="rc-head"><h3>${role}</h3><span class="stamp r-1" style="color:${colorFor(role)}; font-size:12.5px;">${count} USER${count!==1?'S':''}</span></div>
+        <p>${roleDescriptions[role]}</p><ul class="perm-list">${rolePerms[role].map(p=>`<li>${p}</li>`).join('')}</ul></div>`;
+    }).join('')
+  }</div>`;
+}
+
+function pane_1_audit(){
+  document.getElementById('pane').innerHTML = `<div class="panel">
+    <div class="panel-head"><strong>System Audit Trail</strong><span style="font-size:14.5px; color:var(--ink-muted); font-family:'Space Mono',monospace;">LOGINS · EDITS · APPROVALS</span></div>
+    <div class="perf"></div><div>${auditRows(auditLog)}</div></div>`;
+}
+
+// ================= MODULE 2: CRM =================
+function pane_2_customers(){
+  document.getElementById('pane').innerHTML = `
+    <div class="panel">
+      <div class="panel-head">
+        <div class="search-box"><span>⌕</span><input id="cust-search" placeholder="Search customers..." oninput="renderCustomersList()"></div>
+        <button class="btn-coral-sm" onclick="document.getElementById('customer-modal').classList.add('visible')">+ Add Customer</button>
+      </div>
+      <div class="perf"></div>
+      <table><thead><tr><th>Customer</th><th>Contact</th><th>Source</th><th>Past Records</th><th></th></tr></thead>
+      <tbody id="customers-tbody"></tbody></table>
+    </div>`;
+  renderCustomersList();
+}
+function renderCustomersList(){
+  const q = (document.getElementById('cust-search')?.value || '').toLowerCase();
+  const filtered = customers.filter(c=>c.name.toLowerCase().includes(q)||c.contact.toLowerCase().includes(q)||c.email.toLowerCase().includes(q));
+  document.getElementById('customers-tbody').innerHTML = filtered.map(c=>`
+    <tr><td><div class="u-name">${c.name}</div><div class="u-email">${c.email}</div></td>
+    <td>${c.contact}<div class="u-email">${c.phone}</div></td>
+    <td><span class="stamp r-1" style="color:var(--indigo);">${c.source}</span></td>
+    <td class="mono" style="font-size:15px; color:var(--ink-muted);">${c.history.length} quotation${c.history.length!==1?'s':''}</td>
+    <td><div class="row-actions"><button class="icon-btn" title="View history" onclick="viewHistory(${c.id})">🕘</button></div></td></tr>`).join('');
+}
+function viewHistory(id){
+  const c = customers.find(x=>x.id===id);
+  const refs = c.history.map(ref=>{
+    const q = quotations.find(x=>x.id===ref);
+    return q ? `${q.id} — ${q.package} package, ${peso(q.total)}, ${q.status}` : ref;
+  }).join('\n');
+  alert(`History for ${c.name}:\n\n${refs || 'No past quotations yet.'}`);
+}
+function submitCustomer(){
+  const name = document.getElementById('nc-name').value.trim();
+  const contact = document.getElementById('nc-contact').value.trim();
+  const phone = document.getElementById('nc-phone').value.trim();
+  const email = document.getElementById('nc-email').value.trim();
+  const source = document.getElementById('nc-source').value;
+  if(!name || !email){ showToast("Please fill in name and email"); return; }
+  customers.push({id:nextCustomerId++, name, contact:contact||name, phone, email, source, history:[]});
+  logAudit(`added customer ${name}`, `Source: ${source}`);
+  ['nc-name','nc-contact','nc-phone','nc-email'].forEach(id=>document.getElementById(id).value='');
+  closeModal('customer-modal');
+  renderCustomersList();
+  showToast(`${name} added to customer records`);
+}
+
+function pane_2_inquiries(){
+  document.getElementById('pane').innerHTML = `
+    <div class="panel">
+      <div class="panel-head"><strong>Incoming Inquiries</strong></div>
+      <div class="perf"></div>
+      <table><thead><tr><th>Inquiry</th><th>Channel</th><th>Event Date</th><th>Guests (est.)</th><th>Status</th><th></th></tr></thead>
+      <tbody id="inquiries-tbody"></tbody></table>
+    </div>`;
+  renderInquiriesList();
+}
+function renderInquiriesList(){
+  document.getElementById('inquiries-tbody').innerHTML = inquiries.map(i=>`
+    <tr><td class="u-name">${i.name}<div class="u-email">${i.eventType}</div></td>
+    <td style="color:var(--ink-muted); font-size:16.5px;">${i.channel}</td>
+    <td class="mono" style="font-size:16px;">${fmtDate(i.date)}</td>
+    <td>${i.guests}</td>
+    <td><span class="stamp r-2" style="color:${i.status==='Converted'?'var(--cardamom)':i.status==='Quoted'?'var(--turmeric)':'var(--ink-muted)'};">${i.status}</span></td>
+    <td>${i.status!=='Converted' ? `<button class="btn-tiny" onclick="convertInquiry(${i.id})">Convert to Quote</button>` : ''}</td></tr>`).join('');
+}
+function convertInquiry(id){
+  const i = inquiries.find(x=>x.id===id);
+  const num = 'Q-'+(nextQuoteNum++);
+  quotations.unshift({id:num, customer:i.name, eventDate:i.date, guests:i.guests, package:"Gold", total:calcTotal("Gold",i.guests), status:"Draft", validUntil: addDays(TODAY,15)});
+  i.status = "Converted";
+  logAudit(`converted inquiry "${i.name}" to quotation ${num}`, `${i.channel} lead`);
+  renderInquiriesList();
+  showToast(`${num} created from "${i.name}" — review it in Quotation Management`);
+}
+function addDays(date, n){ const d = new Date(date); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+
+// ================= MODULE 3: QUOTATIONS =================
+function pane_3_quotations(){
+  document.getElementById('pane').innerHTML = `
+    <div class="panel">
+      <div class="panel-head"><strong>Quotations</strong>
+        <button class="btn-coral-sm" onclick="openQuoteModal()">+ New Quotation</button>
+      </div>
+      <div class="perf"></div>
+      <table><thead><tr><th>Quote #</th><th>Customer</th><th>Event Date</th><th>Package</th><th>Total</th><th>Status</th><th>Validity</th><th></th></tr></thead>
+      <tbody id="quotes-tbody"></tbody></table>
+    </div>`;
+  renderQuotesList();
+}
+function renderQuotesList(){
+  document.getElementById('quotes-tbody').innerHTML = quotations.map(q=>{
+    const validUntil = new Date(q.validUntil+"T00:00:00");
+    const daysLeft = daysBetween(validUntil, TODAY);
+    const expired = daysLeft < 0 && q.status !== "Accepted";
+    const displayStatus = expired ? "Expired" : q.status;
+    const stColor = displayStatus==='Accepted' ? 'var(--cardamom)' : displayStatus==='Expired' ? 'var(--danger)' : displayStatus==='Sent' ? 'var(--turmeric)' : 'var(--ink-muted)';
+    return `<tr><td class="mono" style="font-weight:700;">${q.id}</td>
+      <td>${q.customer}</td>
+      <td class="mono" style="font-size:16px;">${fmtDate(q.eventDate)}</td>
+      <td><span class="stamp r-1" style="color:var(--indigo);">${q.package}</span></td>
+      <td class="mono" style="font-weight:700;">${peso(q.total)}</td>
+      <td><span class="stamp r-2" style="color:${stColor};">${displayStatus}</span></td>
+      <td class="mono" style="font-size:14.5px; color:var(--ink-muted);">${expired ? 'Expired' : daysLeft+'d left'}</td>
+      <td><div class="row-actions">
+        ${q.status==='Draft' ? `<button class="btn-tiny" onclick="setQuoteStatus('${q.id}','Sent')">Send</button>` : ''}
+        ${q.status==='Sent' && !expired ? `<button class="btn-tiny" onclick="setQuoteStatus('${q.id}','Accepted')">Approve</button>` : ''}
+        ${q.status==='Accepted' ? `<button class="btn-tiny" onclick="createBookingFromQuote('${q.id}')">→ Booking</button>` : ''}
+      </div></td></tr>`;
+  }).join('');
+}
+function setQuoteStatus(id, status){
+  const q = quotations.find(x=>x.id===id);
+  q.status = status;
+  logAudit(`marked quotation ${id} as ${status}`, `${q.customer} · ${peso(q.total)}`);
+  renderQuotesList();
+  showToast(`${id} marked as ${status}`);
+}
+function createBookingFromQuote(id){
+  const q = quotations.find(x=>x.id===id);
+  if(bookings.some(b=>b.quoteRef===id)){ showToast(`A booking already exists for ${id}`); return; }
+  const num = 'BK-'+(nextBookingNum++);
+  bookings.unshift({id:num, customer:q.customer, eventDate:q.eventDate, eventTime:"12:00", eventEndTime:"16:00", venue:"TBD", guests:q.guests, status:"Reserved", quoteRef:id});
+  logAudit(`created booking ${num} from quotation ${id}`, `${q.customer}`);
+  showToast(`${num} created — view it in Booking Management`);
+}
+function openQuoteModal(){
+  document.getElementById('nq-customer').value=''; document.getElementById('nq-date').value='';
+  document.getElementById('nq-guests').value=100; document.getElementById('nq-package').value='Gold';
+  updateQuotePreview();
+  document.getElementById('quote-modal').classList.add('visible');
+}
+function updateQuotePreview(){
+  const guests = parseInt(document.getElementById('nq-guests').value)||0;
+  const pkg = document.getElementById('nq-package').value;
+  const p = packages[pkg];
+  const total = p.base + p.perHead*guests;
+  document.getElementById('quote-price-preview').innerHTML = `
+    <div class="pv-row"><span>Base (${pkg})</span><span>${peso(p.base)}</span></div>
+    <div class="pv-row"><span>${guests} guests × ${peso(p.perHead)}</span><span>${peso(p.perHead*guests)}</span></div>
+    <div class="pv-total"><span>Total</span><span>${peso(total)}</span></div>`;
+}
+function submitQuote(){
+  const customer = document.getElementById('nq-customer').value.trim();
+  const eventDate = document.getElementById('nq-date').value;
+  const guests = parseInt(document.getElementById('nq-guests').value)||0;
+  const pkg = document.getElementById('nq-package').value;
+  if(!customer || !eventDate){ showToast("Please fill in customer and event date"); return; }
+  const num = 'Q-'+(nextQuoteNum++);
+  quotations.unshift({id:num, customer, eventDate, guests, package:pkg, total:calcTotal(pkg,guests), status:"Draft", validUntil: addDays(TODAY,15)});
+  logAudit(`created quotation ${num}`, `${customer} · ${pkg} · ${peso(calcTotal(pkg,guests))}`);
+  closeModal('quote-modal');
+  renderQuotesList();
+  showToast(`${num} created`);
+}
+
+// ================= MODULE 4: BOOKINGS =================
+function pane_4_bookings(){
+  document.getElementById('pane').innerHTML = `
+    <div class="panel">
+      <div class="panel-head"><strong>Bookings</strong>
+        <button class="btn-coral-sm" onclick="document.getElementById('booking-modal').classList.add('visible')">+ New Booking</button>
+      </div>
+      <div class="perf"></div>
+      <table><thead><tr><th>Booking #</th><th>Customer</th><th>Event Date</th><th>Time</th><th>Venue</th><th>Guests</th><th>Status</th><th>Quote Ref</th><th>Staffing</th></tr></thead>
+      <tbody id="bookings-tbody"></tbody></table>
+    </div>`;
+  renderBookingsList();
+}
+const EVENT_DURATION_MIN = 240; // fallback/default duration (used only when no end time is set yet, e.g. quote-created bookings)
+function toMinutes(t){ if(!t) return 720; const [h,m] = t.split(':').map(Number); return h*60+m; }
+function fmtTime(t){ if(!t) return ''; const [h,m] = t.split(':').map(Number); const ap = h>=12?'PM':'AM'; const h12 = ((h+11)%12)+1; return `${h12}:${String(m).padStart(2,'0')} ${ap}`; }
+function minutesToTimeStr(mins){ const h = Math.floor((mins%1440)/60), m = mins%60; return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`; }
+function bookingEndMinutes(b){ const s = toMinutes(b.eventTime); return b.eventEndTime ? toMinutes(b.eventEndTime) : s + EVENT_DURATION_MIN; }
+function fmtTimeRange(startTime, endTime){ if(!startTime) return ''; const end = endTime || minutesToTimeStr(toMinutes(startTime) + EVENT_DURATION_MIN); return `${fmtTime(startTime)} - ${fmtTime(end)}`; }
+function bookingsOverlap(a,b){
+  if(a.eventDate!==b.eventDate) return false;
+  const s1=toMinutes(a.eventTime), e1=bookingEndMinutes(a);
+  const s2=toMinutes(b.eventTime), e2=bookingEndMinutes(b);
+  return s1<e2 && s2<e1;
+}
+function activeBookingsExcept(excludeId){ return bookings.filter(b=>b.status!=='Cancelled' && b.id!==excludeId); }
+function findTimeConflict(eventDate, eventTime, eventEndTime, excludeId){
+  const candidate = {eventDate, eventTime, eventEndTime};
+  return activeBookingsExcept(excludeId).find(b=>bookingsOverlap(b, candidate));
+}
+function conflictingBookingIds(){
+  const ids = new Set();
+  const active = bookings.filter(b=>b.status!=='Cancelled');
+  for(let i=0;i<active.length;i++){
+    for(let j=i+1;j<active.length;j++){
+      if(bookingsOverlap(active[i], active[j])){ ids.add(active[i].id); ids.add(active[j].id); }
+    }
+  }
+  return ids;
+}
+function conflictDates(){
+  const dates = new Set();
+  const ids = conflictingBookingIds();
+  bookings.forEach(b=>{ if(ids.has(b.id)) dates.add(b.eventDate); });
+  return dates;
+}
+function renderBookingsList(){
+  const conflicts = conflictingBookingIds();
+  const assignable = ['Cancelled','Archived'];
+  document.getElementById('bookings-tbody').innerHTML = bookings.map(b=>`
+    <tr><td class="mono" style="font-weight:700;">${b.id}</td>
+      <td>${b.customer}</td>
+      <td class="mono" style="font-size:16px;">${fmtDate(b.eventDate)} ${conflicts.has(b.id) ? '<span title="Time conflict with another booking" style="color:var(--danger);">⚠</span>' : ''}</td>
+      <td class="mono" style="font-size:16px; color:var(--ink-muted);">${fmtTimeRange(b.eventTime, b.eventEndTime)}</td>
+      <td style="font-size:16.5px; color:var(--ink-muted);">${b.venue}</td>
+      <td>${b.guests}</td>
+      <td><select onchange="setBookingStatus('${b.id}', this.value)" style="border:1.5px solid var(--line); border-radius:4px; padding:5px 8px; font-size:15px; font-family:'Space Mono',monospace; color:${statusColor[b.status]};">
+        ${bookingStatuses.map(s=>`<option value="${s}" ${s===b.status?'selected':''}>${s}</option>`).join('')}
+      </select></td>
+      <td class="mono" style="font-size:15px; color:var(--ink-muted);">${b.quoteRef}</td>
+      <td>${assignable.includes(b.status) ? '' : `<button class="btn-tiny" onclick="autoAssignStaff('${b.id}')">⚡ Auto-assign</button>`}</td></tr>`).join('');
+}
+function freeStaffFromBooking(id, reason){
+  const freed = staff.filter(s=>s.assignedTo===id);
+  freed.forEach(s=>{
+    logAudit(`freed ${s.name} — ${id} ${reason}`, s.role);
+    s.availability = 'Available'; s.assignedTo = null;
+  });
+  if(freed.length && document.getElementById('staff-tbody')) renderStaffList();
+  return freed;
+}
+function setBookingStatus(id, status){
+  const b = bookings.find(x=>x.id===id);
+  const old = b.status; b.status = status;
+  logAudit(`changed booking ${id} status`, `${old} → ${status}`);
+  if(status==='Completed' || status==='Cancelled'){
+    const freed = freeStaffFromBooking(id, status.toLowerCase());
+    if(freed.length) showToast(`${id} is now ${status} — ${freed.length} staff member${freed.length!==1?'s':''} back to Available`);
+    else showToast(`${id} is now ${status}`);
+  } else {
+    showToast(`${id} is now ${status}`);
+  }
+  renderBookingsList();
+}
+function checkNewBookingConflict(){
+  const warn = document.getElementById('nb-conflict-warning');
+  const btn = document.getElementById('nb-submit-btn');
+  const eventDate = document.getElementById('nb-date').value;
+  const eventTime = document.getElementById('nb-time').value;
+  const eventEndTime = document.getElementById('nb-end-time').value;
+  if(!eventDate || !eventTime || !eventEndTime){ warn.style.display='none'; btn.disabled=false; btn.style.opacity=1; return; }
+  if(toMinutes(eventEndTime) <= toMinutes(eventTime)){
+    warn.style.display='flex'; warn.innerHTML = '⚠ End time must be after the start time.';
+    btn.disabled=true; btn.style.opacity=0.5;
+    return;
+  }
+  const clash = findTimeConflict(eventDate, eventTime, eventEndTime, null);
+  if(clash){
+    warn.style.display='flex';
+    warn.innerHTML = `⚠ Conflicts with ${clash.id} (${clash.customer}) — booked ${fmtTimeRange(clash.eventTime, clash.eventEndTime)} on ${fmtDate(eventDate)}`;
+    btn.disabled=true; btn.style.opacity=0.5;
+  } else {
+    warn.style.display='none';
+    btn.disabled=false; btn.style.opacity=1;
+  }
+}
+function submitBooking(){
+  const customer = document.getElementById('nb-customer').value.trim();
+  const eventDate = document.getElementById('nb-date').value;
+  const eventTime = document.getElementById('nb-time').value || '12:00';
+  const eventEndTime = document.getElementById('nb-end-time').value || '16:00';
+  const venue = document.getElementById('nb-venue').value.trim();
+  const guests = parseInt(document.getElementById('nb-guests').value)||0;
+  if(!customer || !eventDate){ showToast("Please fill in customer and event date"); return; }
+  if(toMinutes(eventEndTime) <= toMinutes(eventTime)){
+    showToast("⚠ End time must be after the start time"); return;
+  }
+  const clash = findTimeConflict(eventDate, eventTime, eventEndTime, null);
+  if(clash){
+    showToast(`⚠ Time conflict with ${clash.id} (${fmtDate(eventDate)} ${fmtTimeRange(clash.eventTime, clash.eventEndTime)}) — choose a different time`);
+    return;
+  }
+  const num = 'BK-'+(nextBookingNum++);
+  bookings.unshift({id:num, customer, eventDate, eventTime, eventEndTime, venue:venue||"TBD", guests, status:"Inquiry", quoteRef:"—"});
+  logAudit(`created booking ${num}`, `${customer}`);
+  ['nb-customer','nb-date','nb-venue'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('nb-time').value = '12:00';
+  document.getElementById('nb-end-time').value = '16:00';
+  document.getElementById('nb-conflict-warning').style.display='none';
+  const btn = document.getElementById('nb-submit-btn'); btn.disabled=false; btn.style.opacity=1;
+  closeModal('booking-modal');
+  renderBookingsList();
+  showToast(`${num} created`);
+}
+
+// ---- Auto-assign staff per role (Revision: assign needed staff per role automatically) ----
+const roleRequirements = [
+  {role:"Operations Manager", count:1},
+  {role:"Kitchen Manager", count:1},
+  {role:"Purchasing Officer", count:1},
+  {role:"Service Crew", perGuests:50, min:1},
+];
+function requiredCountForBooking(req, guests){
+  if(req.perGuests) return Math.max(req.min||1, Math.ceil(guests/req.perGuests));
+  return req.count;
+}
+function autoAssignStaff(bookingId){
+  const b = bookings.find(x=>x.id===bookingId);
+  if(!b) return;
+  const assignedNames = [];
+  const missing = [];
+  roleRequirements.forEach(req=>{
+    const needed = requiredCountForBooking(req, b.guests);
+    const already = staff.filter(s=>s.role===req.role && s.assignedTo===bookingId).length;
+    let stillNeeded = needed - already;
+    while(stillNeeded>0){
+      const candidate = staff.find(s=>s.role===req.role && s.availability==='Available');
+      if(!candidate){ missing.push(`${req.role} ×${stillNeeded}`); break; }
+      candidate.availability = 'Assigned'; candidate.assignedTo = bookingId;
+      logAudit(`auto-assigned ${candidate.name} to ${bookingId}`, candidate.role);
+      assignedNames.push(candidate.name);
+      stillNeeded--;
+    }
+  });
+  if(document.getElementById('staff-tbody')) renderStaffList();
+  if(assignedNames.length && !missing.length) showToast(`${bookingId}: auto-assigned ${assignedNames.join(', ')}`);
+  else if(assignedNames.length && missing.length) showToast(`${bookingId}: assigned ${assignedNames.join(', ')} — still need ${missing.join(', ')}`);
+  else if(missing.length) showToast(`${bookingId}: no available staff for ${missing.join(', ')}`);
+  else showToast(`${bookingId} already has its required staff assigned`);
+}
+
+// ================= MODULE 5: CALENDAR =================
+function pane_5_calendar(){
+  document.getElementById('pane').innerHTML = `
+    <div class="panel" style="padding:22px 24px;">
+      <div class="cal-head-row"><strong style="font-family:'Fraunces',serif; font-size:21px;">August 2026</strong>
+        <span style="font-size:15px; color:var(--ink-muted); font-family:'Space Mono',monospace;">TIME-CONFLICTING EVENTS ARE FLAGGED ⚠</span></div>
+      <div class="cal-grid" id="cal-dow-row"></div>
+      <div class="cal-grid" id="cal-grid" style="margin-top:6px;"></div>
+      <div class="day-detail" id="day-detail"></div>
+    </div>`;
+  const dows = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+  document.getElementById('cal-dow-row').innerHTML = dows.map(d=>`<div class="cal-dow">${d}</div>`).join('');
+  buildCalendarGrid();
+}
+function buildCalendarGrid(){
+  const year=2026, month=7; // August
+  const firstDow = new Date(year,month,1).getDay();
+  const daysInMonth = new Date(year,month+1,0).getDate();
+  const conflicts = conflictDates();
+  let cells = '';
+  for(let i=0;i<firstDow;i++) cells += `<div class="cal-cell empty"></div>`;
+  for(let day=1; day<=daysInMonth; day++){
+    const iso = `2026-08-${String(day).padStart(2,'0')}`;
+    const dayBookings = bookings.filter(b=>b.eventDate===iso && b.status!=='Cancelled');
+    const isToday = day===TODAY.getDate();
+    const isSelected = selectedCalDay===iso;
+    cells += `<div class="cal-cell ${isToday?'today':''} ${isSelected?'selected':''}" onclick="selectCalDay('${iso}')">
+      <div class="cal-daynum">${day}</div>
+      ${conflicts.has(iso) ? '<div class="cal-conflict-flag">⚠</div>' : ''}
+      <div class="cal-dots">${dayBookings.map(b=>`<div class="cal-dot" style="background:${statusColor[b.status]};" title="${b.customer} — ${fmtTimeRange(b.eventTime, b.eventEndTime)} — ${b.status}"></div>`).join('')}</div>
+    </div>`;
+  }
+  document.getElementById('cal-grid').innerHTML = cells;
+  if(selectedCalDay) renderDayDetail(selectedCalDay);
+}
+function selectCalDay(iso){ selectedCalDay = iso; buildCalendarGrid(); renderDayDetail(iso); }
+function renderDayDetail(iso){
+  const dayBookings = bookings.filter(b=>b.eventDate===iso && b.status!=='Cancelled').sort((a,b)=>toMinutes(a.eventTime)-toMinutes(b.eventTime));
+  const conflictIds = conflictingBookingIds();
+  const dayHasConflict = dayBookings.some(b=>conflictIds.has(b.id));
+  const box = document.getElementById('day-detail');
+  if(!dayBookings.length){ box.innerHTML = `<p style="color:var(--ink-muted); font-size:17px;">No events scheduled on ${fmtDate(iso)}.</p>`; return; }
+  box.innerHTML = `
+    ${dayHasConflict ? `<div class="conflict-banner">⚠ Time conflict — two or more events on ${fmtDate(iso)} overlap. Reschedule one before confirming.</div>` : ''}
+    <strong style="font-size:17px; font-family:'Space Mono',monospace; color:var(--ink-muted); text-transform:uppercase; letter-spacing:.04em;">Events on ${fmtDate(iso)}</strong>
+    <div class="panel" style="margin-top:10px;">${dayBookings.map(b=>`
+      <div class="audit-item"><div class="audit-dot" style="color:${statusColor[b.status]}; background:${statusColor[b.status]};"></div>
+      <div class="audit-body"><div class="audit-top"><span class="audit-actor">${b.customer}</span><span class="audit-action">${fmtTimeRange(b.eventTime, b.eventEndTime)} · ${b.venue} · ${b.guests} guests</span>${conflictIds.has(b.id) ? '<span style="color:var(--danger); font-size:16px;">⚠ conflict</span>' : ''}</div>
+      <div class="audit-meta">${b.id} · ${b.status}</div></div></div>`).join('')}</div>`;
+}
+
+// ================= MODULE 6: STAFF & CHECKLISTS =================
+function pane_6_staff(){
+  document.getElementById('pane').innerHTML = `
+    <div class="panel">
+      <div class="panel-head"><strong>Staff Directory</strong></div>
+      <div class="perf"></div>
+      <table><thead><tr><th>Name</th><th>Role</th><th>Department</th><th>Availability</th><th>Assigned Event</th><th></th></tr></thead>
+      <tbody id="staff-tbody"></tbody></table>
+    </div>`;
+  renderStaffList();
+}
+function renderStaffList(){
+  document.getElementById('staff-tbody').innerHTML = staff.map(s=>`
+    <tr><td class="u-name">${s.name}</td><td style="color:var(--ink-muted); font-size:16.5px;">${s.role}</td>
+    <td><span class="stamp r-1" style="color:var(--indigo);">${s.dept}</span></td>
+    <td><span class="stamp r-2" style="color:${s.availability==='Available'?'var(--cardamom)':s.availability==='Off'?'var(--danger)':'var(--turmeric)'};">${s.availability}</span></td>
+    <td class="mono" style="font-size:15px; color:var(--ink-muted);">${s.assignedTo||'—'}</td>
+    <td><div class="row-actions">
+      ${s.availability==='Available' ? `<button class="btn-tiny" onclick="openAssignModal(${s.id})">Assign</button>` : ''}
+      ${s.availability==='Assigned' ? `<button class="btn-tiny" onclick="unassignStaff(${s.id})">Unassign</button>` : ''}
+    </div></td></tr>`).join('');
+}
+function openAssignModal(staffId){
+  document.getElementById('assign-modal').dataset.staffId = staffId;
+  const s = staff.find(x=>x.id===staffId);
+  document.getElementById('assign-modal-sub').textContent = s.name.toUpperCase();
+  const options = bookings.filter(b=>!['Completed','Cancelled','Archived'].includes(b.status));
+  document.getElementById('assign-booking').innerHTML = options.map(b=>`<option value="${b.id}">${b.id} — ${b.customer} (${fmtDate(b.eventDate)})</option>`).join('');
+  document.getElementById('assign-modal').classList.add('visible');
+}
+function submitAssign(){
+  const staffId = parseInt(document.getElementById('assign-modal').dataset.staffId);
+  const bookingId = document.getElementById('assign-booking').value;
+  const s = staff.find(x=>x.id===staffId);
+  s.availability = "Assigned"; s.assignedTo = bookingId;
+  logAudit(`assigned ${s.name} to ${bookingId}`, s.role);
+  closeModal('assign-modal');
+  renderStaffList();
+  showToast(`${s.name} assigned to ${bookingId}`);
+}
+function unassignStaff(id){
+  const s = staff.find(x=>x.id===id);
+  logAudit(`unassigned ${s.name} from ${s.assignedTo}`, s.role);
+  s.availability="Available"; s.assignedTo=null;
+  renderStaffList();
+  showToast(`${s.name} is now available`);
+}
+
+function pane_6_checklist(){
+  const activeBookings = bookings.filter(b=>!['Cancelled','Archived'].includes(b.status));
+  document.getElementById('pane').innerHTML = `
+    <div class="panel">
+      <div class="panel-head">
+        <strong>Event Preparation Checklist</strong>
+        <select id="checklist-booking-select" onchange="renderChecklist(this.value)" style="border:1.5px solid var(--line); border-radius:4px; padding:8px 10px; font-size:16.5px;">
+          ${activeBookings.map(b=>`<option value="${b.id}">${b.id} — ${b.customer}</option>`).join('')}
+        </select>
+      </div>
+      <div class="perf"></div>
+      <div style="padding:16px 20px 4px; display:flex; align-items:center; gap:10px;">
+        <div class="prog-wrap"><div class="prog-bar" id="checklist-progress-bar" style="width:0%;"></div></div>
+        <span class="mono" id="checklist-progress-label" style="font-size:14.5px; color:var(--ink-muted);">0/6</span>
+      </div>
+      <div id="checklist-items"></div>
+    </div>`;
+  if(activeBookings.length) renderChecklist(activeBookings[0].id);
+}
+function renderChecklist(bookingId){
+  if(!checklistState[bookingId]) checklistState[bookingId] = checklistItems.map(()=>false);
+  const state = checklistState[bookingId];
+  const done = state.filter(Boolean).length;
+  document.getElementById('checklist-progress-bar').style.width = (done/checklistItems.length*100)+'%';
+  document.getElementById('checklist-progress-label').textContent = `${done}/${checklistItems.length}`;
+  document.getElementById('checklist-items').innerHTML = checklistItems.map((item,idx)=>`
+    <div class="checklist-row ${state[idx]?'done':''}">
+      <input type="checkbox" ${state[idx]?'checked':''} onchange="toggleChecklistItem('${bookingId}',${idx})">
+      <span>${item}</span>
+    </div>`).join('');
+}
+function toggleChecklistItem(bookingId, idx){
+  checklistState[bookingId][idx] = !checklistState[bookingId][idx];
+  renderChecklist(bookingId);
+}
+
+// ================= MODULE 7: REPORTING =================
+function pane_7_reports(){
+  const confirmedRevenue = bookings.filter(b=>['Confirmed','Completed'].includes(b.status))
+    .reduce((sum,b)=>{ const q = quotations.find(x=>x.id===b.quoteRef); return sum + (q?q.total:0); }, 0);
+  const pendingQuotes = quotations.filter(q=>['Draft','Sent'].includes(q.status)).length;
+  const upcoming = bookings.filter(b=>{
+    const d = new Date(b.eventDate+"T00:00:00");
+    return d>=TODAY && !['Cancelled','Archived'].includes(b.status);
+  }).length;
+  const statusCounts = {};
+  bookingStatuses.forEach(s=>statusCounts[s]=0);
+  bookings.forEach(b=>statusCounts[b.status]++);
+  const maxCount = Math.max(1,...Object.values(statusCounts));
+
+  document.getElementById('pane').innerHTML = `
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-label">Confirmed Revenue</div><div class="stat-value" style="font-size:29px;">${peso(confirmedRevenue)}</div><div class="stat-sub">From confirmed & completed bookings</div></div>
+      <div class="stat-card"><div class="stat-label">Total Bookings</div><div class="stat-value">${bookings.length}</div><div class="stat-sub">All statuses</div></div>
+      <div class="stat-card"><div class="stat-label">Pending Quotations</div><div class="stat-value">${pendingQuotes}</div><div class="stat-sub">Draft or sent, awaiting approval</div></div>
+      <div class="stat-card"><div class="stat-label">Upcoming Events</div><div class="stat-value">${upcoming}</div><div class="stat-sub">From today onward</div></div>
+    </div>
+    <div class="panel" style="padding:20px 22px; margin-bottom:16px;">
+      <strong style="font-family:'Fraunces',serif; font-size:20px; display:block; margin-bottom:14px;">Bookings by Status</strong>
+      ${bookingStatuses.map(s=>`
+        <div class="barchart-row"><div class="barchart-label">${s}</div>
+        <div class="barchart-track"><div class="barchart-fill" style="width:${(statusCounts[s]/maxCount*100)}%; background:${statusColor[s]};"></div></div>
+        <div class="barchart-val">${statusCounts[s]}</div></div>`).join('')}
+    </div>
+    <button class="btn-ghost-sm" onclick="exportBookingsCSV()">⬇ Export Bookings CSV</button>
+  `;
+}
+function exportBookingsCSV(){
+  const header = "Booking No,Customer,Event Date,Start Time,End Time,Venue,Guests,Status,Quote Ref\n";
+  const rows = bookings.map(b=>[b.id,b.customer,b.eventDate,fmtTime(b.eventTime),fmtTime(b.eventEndTime||minutesToTimeStr(toMinutes(b.eventTime)+EVENT_DURATION_MIN)),b.venue,b.guests,b.status,b.quoteRef].map(v=>`"${v}"`).join(",")).join("\n");
+  const blob = new Blob([header+rows], {type:"text/csv"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = "scims-bookings-export.csv";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  logAudit("exported bookings report to CSV", `${bookings.length} records`);
+  showToast("CSV downloaded");
+}
+
+// ---------------- DISPATCH TABLE ----------------
+const paneFns = {
+  '1-dashboard': pane_1_dashboard, '1-accounts': pane_1_accounts, '1-roles': pane_1_roles, '1-audit': pane_1_audit,
+  '2-customers': pane_2_customers, '2-inquiries': pane_2_inquiries,
+  '3-quotations': pane_3_quotations,
+  '4-bookings': pane_4_bookings,
+  '4-calendar': pane_5_calendar,
+  '5-staff': pane_6_staff, '5-checklist': pane_6_checklist,
+  '6-reports': pane_7_reports,
+};
+
+// close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(ov=>{
+  ov.addEventListener('click', (e)=>{ if(e.target===ov) ov.classList.remove('visible'); });
+});
+</script>
+</body>
+</html>
