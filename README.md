@@ -1,0 +1,2 @@
+# SCIMS
+SCIMS Event Management
