@@ -9,6 +9,9 @@ const { database, closeDatabase } = require('./lib/db');
 const { collectionDocuments, collectionKeys, stateFromCollections } = require('./lib/collections');
 const { createLoginRateLimiter } = require('./lib/login-rate-limit');
 const { sanitizeState, validateState } = require('./lib/state');
+const { accessFor, canWrite, isAdmin } = require('./lib/access');
+const { introducedConflicts, newlyConfirmed } = require('./lib/bookings');
+const { randomUUID } = require('node:crypto');
 
 if (!process.env.MONGODB_URI || !process.env.JWT_SECRET) throw new Error('MONGODB_URI and JWT_SECRET are required');
 
