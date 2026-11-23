@@ -959,8 +959,10 @@ function createBookingFromQuote(id){
   const num = 'BK-'+(nextBookingNum++);
   bookings.unshift({id:num, customer:q.customer, eventDate:q.eventDate, eventTime:"12:00", eventEndTime:"16:00", venue:"TBD", guests:q.guests, status:"Reserved", quoteRef:id});
   logAudit(`created booking ${num} from quotation ${id}`, `${q.customer}`);
-  showToast(`${num} created — view it in Booking Management`);
+  const clash = findTimeConflict(q.eventDate,"12:00","16:00",num);
+  showToast(clash ? `${num} created (default 12:00-4:00 PM) — ⚠ overlaps ${clash.id}; reschedule before confirming` : `${num} created — view it in Booking Management`);
 }
+function openQuoteModal(){
 function openQuoteModal(){
   document.getElementById('nq-customer').value=''; document.getElementById('nq-date').value='';
   document.getElementById('nq-guests').value=100; document.getElementById('nq-package').value='Gold';
@@ -1014,16 +1016,17 @@ function bookingsOverlap(a,b){
   if(a.eventDate!==b.eventDate) return false;
   const s1=toMinutes(a.eventTime), e1=bookingEndMinutes(a);
   const s2=toMinutes(b.eventTime), e2=bookingEndMinutes(b);
-  return s1<e2 && s2<e1;
+   return s1<e2 && s2<e1;
 }
-function activeBookingsExcept(excludeId){ return bookings.filter(b=>b.status!=='Cancelled' && b.id!==excludeId); }
+const INACTIVE_STATUSES = ['Cancelled','Archived'];
+function activeBookingsExcept(excludeId){ return bookings.filter(b=>!INACTIVE_STATUSES.includes(b.status) && b.id!==excludeId); }
 function findTimeConflict(eventDate, eventTime, eventEndTime, excludeId){
   const candidate = {eventDate, eventTime, eventEndTime};
   return activeBookingsExcept(excludeId).find(b=>bookingsOverlap(b, candidate));
 }
 function conflictingBookingIds(){
   const ids = new Set();
-  const active = bookings.filter(b=>b.status!=='Cancelled');
+  const active = bookings.filter(b=>!INACTIVE_STATUSES.includes(b.status));
   for(let i=0;i<active.length;i++){
     for(let j=i+1;j<active.length;j++){
       if(bookingsOverlap(active[i], active[j])){ ids.add(active[i].id); ids.add(active[j].id); }
@@ -1038,20 +1041,33 @@ function conflictDates(){
   return dates;
 }
 function renderBookingsList(){
+  if(!document.getElementById('bookings-tbody')) return;
   const conflicts = conflictingBookingIds();
   const assignable = ['Cancelled','Archived'];
   document.getElementById('bookings-tbody').innerHTML = bookings.map(b=>`
     <tr><td class="mono" style="font-weight:700;">${b.id}</td>
       <td>${b.customer}</td>
       <td class="mono" style="font-size:16px;">${fmtDate(b.eventDate)} ${conflicts.has(b.id) ? '<span title="Time conflict with another booking" style="color:var(--danger);">⚠</span>' : ''}</td>
-      <td class="mono" style="font-size:16px; color:var(--ink-muted);">${fmtTimeRange(b.eventTime, b.eventEndTime)}</td>
+      <td class="mono" style="font-size:16px; color:var(--ink-muted); cursor:pointer; text-decoration:underline dotted;" title="Click to reschedule" onclick="rescheduleBooking('${b.id}')">${fmtTimeRange(b.eventTime, b.eventEndTime)}</td>
       <td style="font-size:16.5px; color:var(--ink-muted);">${b.venue}</td>
       <td>${b.guests}</td>
       <td><select onchange="setBookingStatus('${b.id}', this.value)" style="border:1.5px solid var(--line); border-radius:4px; padding:5px 8px; font-size:15px; font-family:'Space Mono',monospace; color:${statusColor[b.status]};">
         ${bookingStatuses.map(s=>`<option value="${s}" ${s===b.status?'selected':''}>${s}</option>`).join('')}
       </select></td>
       <td class="mono" style="font-size:15px; color:var(--ink-muted);">${b.quoteRef}</td>
-      <td>${assignable.includes(b.status) ? '' : `<button class="btn-tiny" onclick="autoAssignStaff('${b.id}')">⚡ Auto-assign</button>`}</td></tr>`).join('');
+        <td>${assignable.includes(b.status) ? '' : `<button class="btn-tiny" onclick="autoAssignStaff('${b.id}')">⚡ Auto-assign</button>`}</td></tr>`).join('');
+}
+function rescheduleBooking(id){
+  const b = bookings.find(x=>x.id===id); if(!b) return;
+  const cur = `${b.eventDate} ${b.eventTime||'12:00'}-${b.eventEndTime||minutesToTimeStr(toMinutes(b.eventTime)+EVENT_DURATION_MIN)}`;
+  const v = prompt('New schedule (YYYY-MM-DD HH:MM-HH:MM):', cur); if(!v) return;
+  const m = v.trim().match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})-(\d{2}:\d{2})$/);
+  if(!m || toMinutes(m[3])<=toMinutes(m[2])){ showToast('⚠ Use YYYY-MM-DD HH:MM-HH:MM, with the end after the start', true); return; }
+  const clash = findTimeConflict(m[1],m[2],m[3],id);
+  if(clash){ showToast(`⚠ Overlaps ${clash.id} (${clash.customer}, ${fmtTimeRange(clash.eventTime,clash.eventEndTime)})`, true); return; }
+  b.eventDate=m[1]; b.eventTime=m[2]; b.eventEndTime=m[3];
+  logAudit(`rescheduled booking ${id}`, `${cur} → ${v.trim()}`);
+  renderBookingsList(); showToast(`${id} rescheduled`);
 }
 function freeStaffFromBooking(id, reason){
   const freed = staff.filter(s=>s.assignedTo===id);
@@ -1064,7 +1080,15 @@ function freeStaffFromBooking(id, reason){
 }
 function setBookingStatus(id, status){
   const b = bookings.find(x=>x.id===id);
-  const old = b.status; b.status = status;
+  const old = b.status;
+  let blocked = '';
+  if(status==='Confirmed' && !currentUser.access?.approve) blocked = 'Only the Owner, General Manager or Operations Manager can confirm bookings.';
+  else if(['Confirmed','Ongoing Preparation'].includes(status) || (INACTIVE_STATUSES.includes(old) && !INACTIVE_STATUSES.includes(status))){
+    const clash = findTimeConflict(b.eventDate,b.eventTime,b.eventEndTime,b.id);
+    if(clash) blocked = `${id} overlaps ${clash.id} (${clash.customer}, ${fmtTimeRange(clash.eventTime,clash.eventEndTime)}). Reschedule one before setting it to ${status}.`;
+  }
+  if(blocked){ showToast('⚠ '+blocked, true); renderBookingsList(); return; }
+  b.status = status;
   logAudit(`changed booking ${id} status`, `${old} → ${status}`);
   if(status==='Completed' || status==='Cancelled'){
     const freed = freeStaffFromBooking(id, status.toLowerCase());
