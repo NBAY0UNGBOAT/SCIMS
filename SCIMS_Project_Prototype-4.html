@@ -1190,7 +1190,7 @@ function autoAssignStaff(bookingId){
 function pane_5_calendar(){
   document.getElementById('pane').innerHTML = `
     <div class="panel" style="padding:22px 24px;">
-      <div class="cal-head-row"><strong style="font-family:'Fraunces',serif; font-size:21px;">August 2026</strong>
+      <div class="cal-head-row"><span><button class="btn-ghost-sm" onclick="calShift(-1)">‹</button> <strong id="cal-title" style="font-family:'Fraunces',serif; font-size:21px; margin:0 8px;"></strong> <button class="btn-ghost-sm" onclick="calShift(1)">›</button></span>
         <span style="font-size:15px; color:var(--ink-muted); font-family:'Space Mono',monospace;">TIME-CONFLICTING EVENTS ARE FLAGGED ⚠</span></div>
       <div class="cal-grid" id="cal-dow-row"></div>
       <div class="cal-grid" id="cal-grid" style="margin-top:6px;"></div>
@@ -1201,16 +1201,17 @@ function pane_5_calendar(){
   buildCalendarGrid();
 }
 function buildCalendarGrid(){
-  const year=2026, month=7; // August
+  const year=calYear, month=calMonth;
+  document.getElementById('cal-title').textContent = new Date(year,month,1).toLocaleDateString('en-US',{month:'long',year:'numeric'});
   const firstDow = new Date(year,month,1).getDay();
   const daysInMonth = new Date(year,month+1,0).getDate();
   const conflicts = conflictDates();
   let cells = '';
-  for(let i=0;i<firstDow;i++) cells += `<div class="cal-cell empty"></div>`;
+    for(let i=0;i<firstDow;i++) cells += `<div class="cal-cell empty"></div>`;
   for(let day=1; day<=daysInMonth; day++){
-    const iso = `2026-08-${String(day).padStart(2,'0')}`;
+    const iso = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     const dayBookings = bookings.filter(b=>b.eventDate===iso && b.status!=='Cancelled');
-    const isToday = day===TODAY.getDate();
+    const isToday = day===TODAY.getDate() && month===TODAY.getMonth() && year===TODAY.getFullYear();
     const isSelected = selectedCalDay===iso;
     cells += `<div class="cal-cell ${isToday?'today':''} ${isSelected?'selected':''}" onclick="selectCalDay('${iso}')">
       <div class="cal-daynum">${day}</div>
@@ -1323,7 +1324,7 @@ function toggleChecklistItem(bookingId, idx){
 
 // ================= MODULE 7: REPORTING =================
 function pane_7_reports(){
-  const confirmedRevenue = bookings.filter(b=>['Confirmed','Completed'].includes(b.status))
+  const confirmedRevenue = bookings.filter(b=>['Confirmed','Ongoing Preparation','Completed'].includes(b.status))
     .reduce((sum,b)=>{ const q = quotations.find(x=>x.id===b.quoteRef); return sum + (q?q.total:0); }, 0);
   const pendingQuotes = quotations.filter(q=>['Draft','Sent'].includes(q.status)).length;
   const upcoming = bookings.filter(b=>{
@@ -1337,7 +1338,7 @@ function pane_7_reports(){
 
   document.getElementById('pane').innerHTML = `
     <div class="stat-grid">
-      <div class="stat-card"><div class="stat-label">Confirmed Revenue</div><div class="stat-value" style="font-size:29px;">${peso(confirmedRevenue)}</div><div class="stat-sub">From confirmed & completed bookings</div></div>
+      <div class="stat-card"><div class="stat-label">Confirmed Revenue</div><div class="stat-value" style="font-size:29px;">${peso(confirmedRevenue)}</div><div class="stat-sub">From confirmed, in-preparation & completed bookings</div></div>
       <div class="stat-card"><div class="stat-label">Total Bookings</div><div class="stat-value">${bookings.length}</div><div class="stat-sub">All statuses</div></div>
       <div class="stat-card"><div class="stat-label">Pending Quotations</div><div class="stat-value">${pendingQuotes}</div><div class="stat-sub">Draft or sent, awaiting approval</div></div>
       <div class="stat-card"><div class="stat-label">Upcoming Events</div><div class="stat-value">${upcoming}</div><div class="stat-sub">From today onward</div></div>
@@ -1375,6 +1376,22 @@ const paneFns = {
   '5-staff': pane_6_staff, '5-checklist': pane_6_checklist,
   '6-reports': pane_7_reports,
 };
+
+// ---------------- ROLE WRITE GUARDS ----------------
+const WRITE_GUARDS = {
+  users:['toggleStatus','removeUser','openUserModal','submitUserModal'],
+  customers:['submitCustomer'], inquiries:['convertInquiry'],
+  quotations:['setQuoteStatus','openQuoteModal','submitQuote'],
+  bookings:['submitBooking','setBookingStatus','createBookingFromQuote','autoAssignStaff','rescheduleBooking'],
+  staff:['openAssignModal','submitAssign','unassignStaff'], checklists:['toggleChecklistItem'],
+};
+Object.entries(WRITE_GUARDS).forEach(([collection,names])=>names.forEach(name=>{
+  const original = window[name]; if(typeof original!=='function') return;
+  window[name] = function(...args){
+    if(!can(collection)){ showToast(`View-only: the ${currentUser.role} role cannot make this change`, true); if(typeof renderPane==='function') renderPane(); return; }
+    return original.apply(this,args);
+  };
+}));
 
 // close modals on overlay click
 document.querySelectorAll('.modal-overlay').forEach(ov=>{
