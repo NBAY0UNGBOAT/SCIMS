@@ -513,48 +513,137 @@ let editingUserId = null;
 let selectedCalDay = null;
 let calYear = 2026, calMonth = 7;
 let apiReady = false;
-let saveTimer = null;
+let saveTimer = null, saving = null, syncTimer = null;
+let syncedState, recordVersions, pendingAudit = [];
+let reloadAfterRejection = false, retrySave = false, signingOut = false;
+const RECORD_COLLECTIONS = ['users', 'customers', 'inquiries', 'quotations', 'bookings', 'staff', 'checklists'];
 
 function currentState(){ return {users, customers, inquiries, quotations, bookings, staff, checklistState, auditLog}; }
-let lastSynced = '', saving = false, syncTimer = null;
-function applyState(s){
-  ({users, customers, inquiries, quotations, bookings, staff, checklistState, auditLog} = s);
-  lastSynced = JSON.stringify(s);
+function applyState({state, versions}){
+  ({users, customers, inquiries, quotations, bookings, staff, checklistState, auditLog} = state);
+  syncedState = structuredClone(state);
+  recordVersions = versions;
   nextUserId = Math.max(0,...users.map(u=>u.id))+1;
   nextCustomerId = Math.max(0,...customers.map(c=>c.id))+1;
   nextQuoteNum = Math.max(2205,...quotations.map(q=>Number(String(q.id).replace('Q-',''))))+1;
   nextBookingNum = Math.max(1005,...bookings.map(b=>Number(String(b.id).replace('BK-',''))))+1;
 }
-async function loadState(){
+async function fetchState(){
   const response = await fetch('/api/state');
   const body = await response.json();
   if(!response.ok) throw new Error(body.error?.message || 'Could not load saved data.');
-  applyState(body.state);
+  return body;
 }
-function queueSave(){
-  if(!apiReady) return;
+
+function recordsFor(state, collection){
+  if(collection === 'checklists'){
+    return new Map(Object.entries(state.checklistState).map(([bookingId, items]) => [bookingId, {bookingId, items}]));
+  }
+  return new Map(state[collection].map(record => [record.id, record]));
+}
+
+function changesSinceSync(snapshot){
+  const changes = [];
+  for(const collection of RECORD_COLLECTIONS){
+    if(!can(collection)) continue;
+    const before = recordsFor(syncedState, collection);
+    const after = recordsFor(snapshot, collection);
+    for(const [id, record] of after){
+      if(!before.has(id) || JSON.stringify(before.get(id)) !== JSON.stringify(record)){
+        changes.push({collection, id, version: before.has(id) ? recordVersions[collection][id] : null, record});
+      }
+    }
+    for(const id of before.keys()){
+      if(!after.has(id)) changes.push({collection, id, version: recordVersions[collection][id], record: null});
+    }
+  }
+  return changes;
+}
+
+async function reloadRejectedSave(){
+  const latest = await fetchState();
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(async ()=>{
-    saveTimer = null; saving = true;
-    try {
-      const response = await fetch('/api/state', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({state:currentState()})});
-      const body = await response.json().catch(()=>({}));
-      if(!response.ok){ showToast('⚠ '+(body.error?.message||'Could not save changes.')+' Latest data reloaded.', true); await loadState(); }
-      else if(!saveTimer) applyState(body.state);
-      refreshView();
-    } catch(error) { console.error('Could not save changes.', error); }
-    finally { saving = false; }
-  }, 300);
+  saveTimer = null;
+  applyState(latest);
+  pendingAudit = [];
+  reloadAfterRejection = false;
+  document.querySelectorAll('.modal-overlay.visible').forEach(modal => modal.classList.remove('visible'));
+  renderPane();
 }
+
+async function saveChanges(){
+  if(reloadAfterRejection){
+    await reloadRejectedSave();
+    return;
+  }
+  const snapshot = structuredClone(currentState());
+  const changes = changesSinceSync(snapshot);
+  const audit = pendingAudit.slice();
+  if(!changes.length && !audit.length) return;
+
+  const response = await fetch('/api/state', {
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({changes, audit}),
+  });
+  const body = await response.json();
+  if(!response.ok){
+    if(response.status >= 500) throw new Error(body.error?.message || 'Save failed.');
+    reloadAfterRejection = true;
+    showToast((body.error?.message || 'Could not save changes.')+' Reloading saved data. Unsaved edits will be discarded.', true);
+    await reloadRejectedSave();
+    return;
+  }
+
+  for(const {collection, id, record} of changes){
+    if(record) recordVersions[collection][id] = body.version;
+    else delete recordVersions[collection][id];
+    if(collection === 'users' && record?.password){
+      const current = users.find(user => user.id === id);
+      if(current?.password === record.password) delete current.password;
+      delete record.password;
+    }
+  }
+  syncedState = snapshot;
+  pendingAudit.splice(0, audit.length);
+}
+
+function queueSave(){
+  if(!apiReady || signingOut) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flushSave, 300);
+}
+async function flushSave(){
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  if(!apiReady) return;
+  if(saving){
+    await saving;
+    return flushSave();
+  }
+  retrySave = false;
+  saving = saveChanges().catch(error => {
+    retrySave = true;
+    console.error('Could not sync changes.', error);
+    showToast('Could not sync changes. The app will retry when it can reconnect.', true);
+  });
+  try { await saving; }
+  finally { saving = null; }
+}
+
 function startSync(){
   stopSync();
   syncTimer = setInterval(async ()=>{
-    if(!apiReady || saveTimer || saving || document.querySelector('.modal-overlay.visible')) return;
+    if(!apiReady || signingOut || saveTimer || saving || document.querySelector('.modal-overlay.visible')) return;
+    if(retrySave){ await flushSave(); return; }
+    const baseline = syncedState;
     try {
-      const response = await fetch('/api/state');
-      if(!response.ok) return;
-      const {state} = await response.json();
-      if(JSON.stringify(state) !== lastSynced){ applyState(state); refreshView(); }
+      const latest = await fetchState();
+      if(!apiReady || signingOut || saveTimer || saving || baseline !== syncedState || document.querySelector('.modal-overlay.visible')) return;
+      if(JSON.stringify(latest.state) !== JSON.stringify(syncedState) || JSON.stringify(latest.versions) !== JSON.stringify(recordVersions)){
+        applyState(latest);
+        renderPane();
+      }
     } catch {}
   }, 15000);
 }
@@ -576,7 +665,9 @@ function showToast(msg, noSave){
 }
 function logAudit(action, meta){
   const auditId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now())+Math.random();
-  auditLog.unshift({auditId, actor:currentUser.name, action:action, meta:meta||"", time:new Date().toISOString()});
+  const entry = {auditId, action:String(action).slice(0,300), meta:String(meta||'').slice(0,300)};
+  pendingAudit.push(entry);
+  auditLog.unshift({...entry, actor:currentUser.name, time:new Date().toISOString()});
 }
 function fmtAuditTime(t){ return /^\d{4}-\d\d-\d\dT/.test(t||'') ? new Date(t).toLocaleString('en-PH',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : t; }
 // Re-render the visible data screen after any change (keeps calendar/dashboard/reports in step with bookings).
@@ -626,7 +717,10 @@ async function doLogin(){
     const body = await response.json();
     if(!response.ok) throw new Error(body.error?.message || 'Could not sign in.');
     currentUser = body.user;
-    await loadState();
+    applyState(await fetchState());
+    pendingAudit = [];
+    reloadAfterRejection = false;
+    retrySave = false;
     apiReady = true; startSync();
   } catch(error) {
     errBox.style.display='flex';
@@ -649,14 +743,22 @@ async function doLogin(){
   renderPane();
   showToast(`Signed in as ${currentUser.name} (${currentUser.role})`);
 }
-function doLogout(){
+async function doLogout(){
+  if(signingOut) return;
+  signingOut = true;
   logAudit("logged out", `${currentUser.role} · session ended`);
+  await flushSave();
+  apiReady = false; stopSync();
+  try {
+    await fetch('/api/auth/logout', {method:'POST'});
+  } catch(error) {
+    console.error('Could not sign out on the server.', error);
+  }
+  signingOut = false;
   document.getElementById('app-shell').classList.remove('visible');
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('login-error').style.display = 'none';
   document.getElementById('sample-list').style.display = 'none';
-  apiReady = false; stopSync();
-  fetch('/api/auth/logout', {method:'POST'});
 }
 
 // ---------------- NAV ----------------
@@ -963,7 +1065,6 @@ function createBookingFromQuote(id){
   showToast(clash ? `${num} created (default 12:00-4:00 PM) — ⚠ overlaps ${clash.id}; reschedule before confirming` : `${num} created — view it in Booking Management`);
 }
 function openQuoteModal(){
-function openQuoteModal(){
   document.getElementById('nq-customer').value=''; document.getElementById('nq-date').value='';
   document.getElementById('nq-guests').value=100; document.getElementById('nq-package').value='Gold';
   updateQuotePreview();
@@ -1090,7 +1191,7 @@ function setBookingStatus(id, status){
   if(blocked){ showToast('⚠ '+blocked, true); renderBookingsList(); return; }
   b.status = status;
   logAudit(`changed booking ${id} status`, `${old} → ${status}`);
-  if(status==='Completed' || status==='Cancelled'){
+  if(can('staff') && (status==='Completed' || status==='Cancelled')){
     const freed = freeStaffFromBooking(id, status.toLowerCase());
     if(freed.length) showToast(`${id} is now ${status} — ${freed.length} staff member${freed.length!==1?'s':''} back to Available`);
     else showToast(`${id} is now ${status}`);
@@ -1306,8 +1407,7 @@ function pane_6_checklist(){
   if(activeBookings.length) renderChecklist(activeBookings[0].id);
 }
 function renderChecklist(bookingId){
-  if(!checklistState[bookingId]) checklistState[bookingId] = checklistItems.map(()=>false);
-  const state = checklistState[bookingId];
+  const state = checklistState[bookingId] || checklistItems.map(()=>false);
   const done = state.filter(Boolean).length;
   document.getElementById('checklist-progress-bar').style.width = (done/checklistItems.length*100)+'%';
   document.getElementById('checklist-progress-label').textContent = `${done}/${checklistItems.length}`;
@@ -1318,8 +1418,10 @@ function renderChecklist(bookingId){
     </div>`).join('');
 }
 function toggleChecklistItem(bookingId, idx){
+  checklistState[bookingId] ||= checklistItems.map(()=>false);
   checklistState[bookingId][idx] = !checklistState[bookingId][idx];
   renderChecklist(bookingId);
+  queueSave();
 }
 
 // ================= MODULE 7: REPORTING =================
@@ -1382,12 +1484,13 @@ const WRITE_GUARDS = {
   users:['toggleStatus','removeUser','openUserModal','submitUserModal'],
   customers:['submitCustomer'], inquiries:['convertInquiry'],
   quotations:['setQuoteStatus','openQuoteModal','submitQuote'],
-  bookings:['submitBooking','setBookingStatus','createBookingFromQuote','autoAssignStaff','rescheduleBooking'],
-  staff:['openAssignModal','submitAssign','unassignStaff'], checklists:['toggleChecklistItem'],
+  bookings:['submitBooking','setBookingStatus','createBookingFromQuote','rescheduleBooking'],
+  staff:['openAssignModal','submitAssign','unassignStaff','autoAssignStaff'], checklists:['toggleChecklistItem'],
 };
 Object.entries(WRITE_GUARDS).forEach(([collection,names])=>names.forEach(name=>{
   const original = window[name]; if(typeof original!=='function') return;
   window[name] = function(...args){
+    if(signingOut) return;
     if(!can(collection)){ showToast(`View-only: the ${currentUser.role} role cannot make this change`, true); if(typeof renderPane==='function') renderPane(); return; }
     return original.apply(this,args);
   };
