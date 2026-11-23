@@ -511,15 +511,15 @@ let activeModule = 1;
 let activeTabByModule = {1:'dashboard',2:'customers',3:'quotations',4:'bookings',5:'staff',6:'reports'};
 let editingUserId = null;
 let selectedCalDay = null;
+let calYear = 2026, calMonth = 7;
 let apiReady = false;
 let saveTimer = null;
 
 function currentState(){ return {users, customers, inquiries, quotations, bookings, staff, checklistState, auditLog}; }
-async function loadState(){
-  const response = await fetch('/api/state');
-  const body = await response.json();
-  if(!response.ok) throw new Error(body.error?.message || 'Could not load saved data.');
-  ({users, customers, inquiries, quotations, bookings, staff, checklistState, auditLog} = body.state);
+let lastSynced = '', saving = false, syncTimer = null;
+function applyState(s){
+  ({users, customers, inquiries, quotations, bookings, staff, checklistState, auditLog} = s);
+  lastSynced = JSON.stringify(s);
   nextUserId = Math.max(0,...users.map(u=>u.id))+1;
   nextCustomerId = Math.max(0,...customers.map(c=>c.id))+1;
   nextQuoteNum = Math.max(2205,...quotations.map(q=>Number(String(q.id).replace('Q-',''))))+1;
