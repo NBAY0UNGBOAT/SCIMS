@@ -137,24 +137,43 @@ app.post('/api/auth/logout', (_request, response) => {
 
 app.get('/api/state', auth, async (_request, response, next) => {
   try {
-    const state = await currentState();
+        const state = await currentState();
     if (!state.users.length) return response.status(503).json({ error: { code: 'NOT_SEEDED', message: 'Run npm run migrate first.' } });
-    response.json({ state: sanitizeState(state) });
+    response.json({ state: visibleState(state, _request.user.role) });
   } catch (error) { next(error); }
 });
 
-app.put('/api/state', auth, ownerOnly, async (request, response, next) => {
+app.put('/api/state', auth, async (request, response, next) => {
   try {
+    const { role } = request.user;
+    const access = accessFor(role);
     const incoming = validateState(request.body?.state);
-    const existingUsers = await (await database()).collection('users').find({}, { projection: { id: 1, passwordHash: 1 } }).toArray();
-    const existingHashes = new Map(existingUsers.map((user) => [user.id, user.passwordHash]));
-    incoming.users = await Promise.all(incoming.users.map(async ({ password, passwordHash, ...user }) => ({
-      ...user,
-      passwordHash: password ? await bcrypt.hash(password, 12) : existingHashes.get(user.id),
-    })));
-    if (incoming.users.some((user) => !user.passwordHash)) return response.status(422).json({ error: { code: 'PASSWORD_REQUIRED', message: 'New accounts require a password.' } });
-    const saved = await saveState(incoming);
-    response.json({ state: sanitizeState(saved) });
+    const current = await currentState();
+    const merged = { ...current };
+    const writable = [];
+    for (const [collection, key] of Object.entries(STATE_KEYS)) {
+      if (!canWrite(access, collection)) continue;
+      merged[key] = incoming[key];
+      writable.push(collection);
+    }
+    if (writable.includes('users')) {
+      const hashes = new Map(current.users.map((user) => [user.id, user.passwordHash]));
+      merged.users = await Promise.all(incoming.users.map(async ({ password, passwordHash, ...user }) => ({
+        ...user,
+        passwordHash: password ? await bcrypt.hash(password, 12) : hashes.get(user.id),
+      })));
+      if (merged.users.some((user) => !user.passwordHash)) return response.status(422).json({ error: { code: 'PASSWORD_REQUIRED', message: 'New accounts require a password.' } });
+    }
+    if (writable.includes('bookings')) {
+      if (!access.approve && newlyConfirmed(current.bookings, merged.bookings).length) {
+        return response.status(403).json({ error: { code: 'FORBIDDEN', message: 'Only the Owner, General Manager or Operations Manager can confirm bookings.' } });
+      }
+      const clashes = introducedConflicts(current.bookings, merged.bookings);
+      if (clashes.length) return response.status(409).json({ error: { code: 'SCHEDULE_CONFLICT', message: `Schedule conflict: ${clashes.join(', ')} overlap another active booking.` } });
+    }
+    await saveState(merged, writable);
+    await appendAudit(current.auditLog, incoming.auditLog, request.user);
+    response.json({ state: visibleState(await currentState(), role) });
   } catch (error) { next(error); }
 });
 
