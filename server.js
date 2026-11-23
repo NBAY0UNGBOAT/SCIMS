@@ -5,10 +5,12 @@ const express = require('express');
 const helmet = require('helmet');
 const jwt = require('jsonwebtoken');
 const path = require('node:path');
-const { database, closeDatabase } = require('./lib/db');
-const { collectionDocuments, collectionKeys, stateFromCollections } = require('./lib/collections');
+const { database, closeDatabase, withTransaction } = require('./lib/db');
+const { collectionKeys, stateFromCollections } = require('./lib/collections');
 const { createLoginRateLimiter } = require('./lib/login-rate-limit');
-const { sanitizeState, validateState } = require('./lib/state');
+const { sanitizeState } = require('./lib/state');
+const { accessFor, isAdmin } = require('./lib/access');
+const { mutableCollections, StateChangeError, prepareStateChanges, saveStateChanges } = require('./lib/state-changes');
 
 if (!process.env.MONGODB_URI || !process.env.JWT_SECRET) throw new Error('MONGODB_URI and JWT_SECRET are required');
 
@@ -45,41 +47,19 @@ function auth(request, response, next) {
   }
 }
 
-function ownerOnly(request, response, next) {
-  if (request.user.role !== 'Owner') return response.status(403).json({ error: { code: 'FORBIDDEN', message: 'Owner access is required.' } });
-  next();
-}
-
-async function currentState() {
+async function currentState(role) {
+  const admin = isAdmin(accessFor(role));
   const db = await database();
-  const [users, customers, inquiries, quotations, bookings, staff, checklists, auditLogs] = await Promise.all([
-    db.collection('users').find().toArray(),
-    db.collection('customers').find().toArray(),
-    db.collection('inquiries').find().toArray(),
-    db.collection('quotations').find().toArray(),
-    db.collection('bookings').find().toArray(),
-    db.collection('staff').find().toArray(),
-    db.collection('checklists').find().toArray(),
-    db.collection('auditLogs').find().toArray(),
-  ]);
-  return stateFromCollections({ users, customers, inquiries, quotations, bookings, staff, checklists, auditLogs });
-}
-
-async function syncCollection(db, collectionName, documents) {
-  const key = collectionKeys[collectionName];
-  const collection = db.collection(collectionName);
-  if (!documents.length) return collection.deleteMany({});
-  await collection.deleteMany({ [key]: { $nin: documents.map((document) => document[key]) } });
-  await collection.bulkWrite(documents.map((document) => ({
-    replaceOne: { filter: { [key]: document[key] }, replacement: document, upsert: true },
-  })));
-}
-
-async function saveState(state) {
-  const db = await database();
-  const documents = collectionDocuments(state);
-  await Promise.all(Object.entries(documents).map(([collectionName, entries]) => syncCollection(db, collectionName, entries)));
-  return stateFromCollections(documents);
+  const names = Object.keys(collectionKeys);
+  const entries = await Promise.all(names.map(async (name) => {
+    if (!admin && (name === 'users' || name === 'auditLogs')) return [name, []];
+    return [name, await db.collection(name).find().toArray()];
+  }));
+  const documents = Object.fromEntries(entries);
+  const versions = Object.fromEntries(mutableCollections.map((name) => [
+    name, Object.fromEntries(documents[name].map((record) => [record[collectionKeys[name]], record._version ?? 0])),
+  ]));
+  return { state: sanitizeState(stateFromCollections(documents)), versions };
 }
 
 app.get('/api/health', async (_request, response, next) => {
@@ -102,7 +82,7 @@ app.post('/api/auth/login', async (request, response, next) => {
     loginLimiter.reset(request.ip);
     const token = jwt.sign({ id: user.id, name: user.name, role: user.role }, process.env.JWT_SECRET, { expiresIn: '8h' });
     response.cookie(COOKIE_NAME, token, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', maxAge: 8 * 60 * 60 * 1000 });
-    response.json({ user: { id: user.id, name: user.name, role: user.role } });
+    response.json({ user: { id: user.id, name: user.name, role: user.role, access: accessFor(user.role) } });
   } catch (error) { next(error); }
 });
 
@@ -110,27 +90,28 @@ app.post('/api/auth/logout', (_request, response) => {
   response.clearCookie(COOKIE_NAME).status(204).end();
 });
 
-app.get('/api/state', auth, async (_request, response, next) => {
+app.get('/api/state', auth, async (request, response, next) => {
   try {
-    const state = await currentState();
-    if (!state.users.length) return response.status(503).json({ error: { code: 'NOT_SEEDED', message: 'Run npm run migrate first.' } });
-    response.json({ state: sanitizeState(state) });
+    const result = await currentState(request.user.role);
+    if (isAdmin(accessFor(request.user.role)) && !result.state.users.length) {
+      return response.status(503).json({ error: { code: 'NOT_SEEDED', message: 'Run npm run migrate first.' } });
+    }
+    response.json(result);
   } catch (error) { next(error); }
 });
 
-app.put('/api/state', auth, ownerOnly, async (request, response, next) => {
+app.put('/api/state', auth, async (request, response, next) => {
   try {
-    const incoming = validateState(request.body?.state);
-    const existingUsers = await (await database()).collection('users').find({}, { projection: { id: 1, passwordHash: 1 } }).toArray();
-    const existingHashes = new Map(existingUsers.map((user) => [user.id, user.passwordHash]));
-    incoming.users = await Promise.all(incoming.users.map(async ({ password, passwordHash, ...user }) => ({
-      ...user,
-      passwordHash: password ? await bcrypt.hash(password, 12) : existingHashes.get(user.id),
-    })));
-    if (incoming.users.some((user) => !user.passwordHash)) return response.status(422).json({ error: { code: 'PASSWORD_REQUIRED', message: 'New accounts require a password.' } });
-    const saved = await saveState(incoming);
-    response.json({ state: sanitizeState(saved) });
-  } catch (error) { next(error); }
+    const access = accessFor(request.user.role);
+    const prepared = await prepareStateChanges(request.body, access);
+    if (!prepared.changes.length && !prepared.audit.length) return response.json({ version: null });
+    const result = await withTransaction((db, session) => saveStateChanges(db, session, prepared, access, request.user.name));
+    response.json(result);
+  } catch (error) {
+    if (error instanceof StateChangeError) return response.status(error.status).json({ error: { code: error.code, message: error.message } });
+    if (error.code === 11000) return response.status(409).json({ error: { code: 'RECORD_CONFLICT', message: 'A record already uses those details. Review the latest data and try again.' } });
+    next(error);
+  }
 });
 
 app.use((error, _request, response, _next) => {
