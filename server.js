@@ -78,11 +78,33 @@ async function syncCollection(db, collectionName, documents) {
   })));
 }
 
-async function saveState(state) {
+}
+
+const STATE_KEYS = { users: 'users', customers: 'customers', inquiries: 'inquiries', quotations: 'quotations', bookings: 'bookings', staff: 'staff', checklists: 'checklistState' };
+
+async function saveState(state, collections) {
   const db = await database();
   const documents = collectionDocuments(state);
-  await Promise.all(Object.entries(documents).map(([collectionName, entries]) => syncCollection(db, collectionName, entries)));
-  return stateFromCollections(documents);
+  await Promise.all(collections.map((name) => syncCollection(db, name, documents[name])));
+}
+
+// Audit entries are append-only and stamped by the server (actor + time come from the session, not the client).
+async function appendAudit(existing, incoming, user) {
+  const known = new Set(existing.map((entry) => entry.auditId));
+  const added = incoming.filter((entry) => !known.has(entry.auditId)).map((entry) => ({
+    auditId: entry.auditId || randomUUID(),
+    actor: user.name,
+    action: String(entry.action || '').slice(0, 300),
+    meta: String(entry.meta || '').slice(0, 300),
+    time: new Date().toISOString(),
+  }));
+  if (added.length) await (await database()).collection('auditLogs').insertMany(added);
+  return added;
+}
+
+function visibleState(state, role) {
+  const admin = isAdmin(accessFor(role));
+  return sanitizeState({ ...state, users: admin ? state.users : [], auditLog: admin ? state.auditLog : [] });
 }
 
 app.get('/api/health', async (_request, response, next) => {
