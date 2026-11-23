@@ -566,16 +566,31 @@ function colorFor(role){ return roleColors[role] || "#C2452F"; }
 function peso(n){ return "₱" + n.toLocaleString("en-PH"); }
 function fmtDate(iso){ const d = new Date(iso+"T00:00:00"); return d.toLocaleDateString("en-PH",{month:'short',day:'numeric',year:'numeric'}); }
 function daysBetween(a,b){ return Math.ceil((a-b)/86400000); }
-function showToast(msg){
+function showToast(msg, noSave){
   const wrap = document.getElementById('toast-wrap');
   const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
   wrap.appendChild(t);
   setTimeout(()=>{ t.style.transition='opacity .3s'; t.style.opacity='0'; setTimeout(()=>t.remove(),300); }, 3000);
-  queueSave();
+  if(!noSave) queueSave();
+  refreshView();
 }
 function logAudit(action, meta){
-  auditLog.unshift({actor:currentUser.name, action:action, meta:meta||"", time:"Just now"});
+  const auditId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now())+Math.random();
+  auditLog.unshift({auditId, actor:currentUser.name, action:action, meta:meta||"", time:new Date().toISOString()});
 }
+function fmtAuditTime(t){ return /^\d{4}-\d\d-\d\dT/.test(t||'') ? new Date(t).toLocaleString('en-PH',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : t; }
+// Re-render the visible data screen after any change (keeps calendar/dashboard/reports in step with bookings).
+function refreshView(){
+  if(!apiReady || document.querySelector('.modal-overlay.visible')) return;
+  const key = activeModule+'-'+activeTabByModule[activeModule];
+  if(['1-dashboard','4-bookings','4-calendar','5-staff','6-reports'].includes(key) && paneFns[key]) paneFns[key]();
+}
+// Role-based access (permissions come from the server at login).
+function canView(n,k){ const a=currentUser.access; return !!a && (a.tabs==='*' || a.tabs.includes(n+'-'+k)); }
+function can(collection){ const a=currentUser.access; return !!a && (a.write==='*' || a.write.includes(collection)); }
+function allowedTabs(m){ return m.tabs.filter(t=>canView(m.n,t.k)); }
+function firstAllowed(){ for(const m of modules){ const t=allowedTabs(m)[0]; if(t) return {n:m.n,k:t.k}; } return null; }
+function calShift(d){ const dt=new Date(calYear,calMonth+d,1); calYear=dt.getFullYear(); calMonth=dt.getMonth(); selectedCalDay=null; document.getElementById('day-detail').innerHTML=''; buildCalendarGrid(); }
 function closeModal(id){ document.getElementById(id).classList.remove('visible'); }
 function togglePassword(){
   const input = document.getElementById('login-pass');
