@@ -127,7 +127,7 @@ app.post('/api/auth/login', async (request, response, next) => {
     loginLimiter.reset(request.ip);
     const token = jwt.sign({ id: user.id, name: user.name, role: user.role }, process.env.JWT_SECRET, { expiresIn: '8h' });
     response.cookie(COOKIE_NAME, token, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', maxAge: 8 * 60 * 60 * 1000 });
-    response.json({ user: { id: user.id, name: user.name, role: user.role } });
+    response.json({ user: { id: user.id, name: user.name, role: user.role, access: accessFor(user.role) } });
   } catch (error) { next(error); }
 });
 
