@@ -627,7 +627,7 @@ async function doLogin(){
     if(!response.ok) throw new Error(body.error?.message || 'Could not sign in.');
     currentUser = body.user;
     await loadState();
-    apiReady = true;
+    apiReady = true; startSync();
   } catch(error) {
     errBox.style.display='flex';
     errBox.querySelector('.msg').textContent = error.message;
@@ -643,7 +643,8 @@ async function doLogin(){
   document.getElementById('topbar-role-badge').textContent = currentUser.role;
   document.getElementById('topbar-role-badge').style.color = colorFor(currentUser.role);
   logAudit("logged in", `${currentUser.role} · matched via ${email}`);
-  activeModule = 1;
+  const landing = firstAllowed() || {n:1,k:'dashboard'};
+  activeModule = landing.n; activeTabByModule[landing.n] = landing.k;
   renderModuleNav();
   renderPane();
   showToast(`Signed in as ${currentUser.name} (${currentUser.role})`);
@@ -654,7 +655,7 @@ function doLogout(){
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('login-error').style.display = 'none';
   document.getElementById('sample-list').style.display = 'none';
-  apiReady = false;
+  apiReady = false; stopSync();
   fetch('/api/auth/logout', {method:'POST'});
 }
 
@@ -662,13 +663,13 @@ function doLogout(){
 function renderModuleNav(){
   const nav = document.getElementById('module-nav');
   const mod = modules.find(m=>m.n===activeModule);
-  nav.innerHTML = modules.map(m=>`
+  nav.innerHTML = modules.filter(m=>allowedTabs(m).length).map(m=>`
     <button class="mod-item ${m.n===activeModule?'active':''}" onclick="selectModule(${m.n})">
       <span class="num">${m.n}</span><span>${m.name}</span>
     </button>
-    ${m.n===activeModule && m.tabs.length>1 ? `
+    ${m.n===activeModule && allowedTabs(m).length>1 ? `
     <div class="subrail">
-      ${m.tabs.map(t=>`<button class="sub-item ${activeTabByModule[m.n]===t.k?'active':''}" onclick="selectTab('${t.k}')">${t.l}</button>`).join('')}
+      ${allowedTabs(m).map(t=>`<button class="sub-item ${activeTabByModule[m.n]===t.k?'active':''}" onclick="selectTab('${t.k}')">${t.l}</button>`).join('')}
     </div>` : ''}
   `).join('');
 }
@@ -685,11 +686,14 @@ function selectTab(key){
 
 function renderPane(){
   const mod = modules.find(m=>m.n===activeModule);
+  const okTabs = allowedTabs(mod);
+  if(!okTabs.length){ const f=firstAllowed(); if(f){ activeModule=f.n; activeTabByModule[f.n]=f.k; renderModuleNav(); renderPane(); } return; }
+  if(!canView(mod.n, activeTabByModule[mod.n])) activeTabByModule[mod.n] = okTabs[0].k;
   document.getElementById('crumb').textContent = `Module ${mod.n} · ${mod.name}`;
   const tabsRow = document.getElementById('tabs-row');
-  if(mod.tabs.length>1){
+  if(okTabs.length>1){
     tabsRow.style.display='flex';
-    tabsRow.innerHTML = mod.tabs.map(t=>`<button class="tab-btn ${activeTabByModule[mod.n]===t.k?'active':''}" onclick="selectTab('${t.k}')">${t.l.toUpperCase()}</button>`).join('');
+    tabsRow.innerHTML = okTabs.map(t=>`<button class="tab-btn ${activeTabByModule[mod.n]===t.k?'active':''}" onclick="selectTab('${t.k}')">${t.l.toUpperCase()}</button>`).join('');
   } else {
     tabsRow.style.display='none'; tabsRow.innerHTML='';
   }
@@ -720,9 +724,9 @@ function pane_1_dashboard(){
     </div>`;
 }
 function auditRows(list){
-  return list.map(a=>`
+   return list.map(a=>`
     <div class="audit-item"><div class="audit-dot" style="color:var(--paprika); background:var(--paprika);"></div>
-      <div class="audit-body"><div class="audit-top"><span class="audit-actor">${a.actor}</span><span class="audit-action">${a.action}</span><span class="audit-time">${a.time}</span></div>
+      <div class="audit-body"><div class="audit-top"><span class="audit-actor">${a.actor}</span><span class="audit-action">${a.action}</span><span class="audit-time">${fmtAuditTime(a.time)}</span></div>
       <div class="audit-meta">${a.meta}</div></div></div>`).join('');
 }
 
