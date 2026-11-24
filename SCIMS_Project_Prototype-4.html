@@ -292,7 +292,10 @@
   <main class="main">
     <div class="topbar">
       <div><div class="crumb" id="crumb">Module 1 · User Management</div><h1 id="view-title">Dashboard</h1></div>
-      <span class="stamp r-1" id="topbar-role-badge" style="color:var(--paprika);">Owner</span>
+      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <button type="button" class="btn-ghost-sm" id="module-csv-button" style="display:none;" onclick="openCSVExport(this.dataset.report)">⬇ Export CSV</button>
+        <span class="stamp r-1" id="topbar-role-badge" style="color:var(--paprika);">Owner</span>
+      </div>
     </div>
     <div class="content">
       <div class="tabs" id="tabs-row"></div>
@@ -385,6 +388,41 @@
       <div class="field"><label>Select event</label><select id="assign-booking"></select></div>
     </div>
     <div class="modal-actions"><button class="btn-ghost-sm" onclick="closeModal('assign-modal')">Cancel</button><button class="btn-coral-sm" onclick="submitAssign()">Assign</button></div>
+  </div>
+</div>
+
+<!-- CSV EXPORT MODAL -->
+<div class="modal-overlay" id="csv-export-modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="csv-export-title" style="max-width:590px; max-height:90vh; overflow:auto;">
+    <div class="modal-top"><h2 id="csv-export-title">Export CSV</h2></div>
+    <form id="csv-export-form" onsubmit="submitCSVExport(event)">
+      <div class="modal-body">
+        <div class="field" id="csv-report-field" hidden><label for="csv-report">Report type</label><select id="csv-report" onchange="configureCSVExport()" required></select></div>
+
+        <div id="csv-date-fields" hidden>
+          <div id="csv-date-label" style="font-size:14px; color:var(--ink-muted); margin-bottom:8px;"></div>
+          <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px;">
+            <div class="field"><label for="csv-from">From (optional)</label><input type="date" id="csv-from"></div>
+            <div class="field"><label for="csv-to">To (optional)</label><input type="date" id="csv-to"></div>
+          </div>
+        </div>
+
+        <div class="field" id="csv-status-field" hidden><label for="csv-status">Status</label><select id="csv-status"></select></div>
+        <div class="field"><label for="csv-search">Search (optional)</label><input id="csv-search" maxlength="150" placeholder="Search records"></div>
+
+        <fieldset style="border:1px solid var(--line); margin:0 0 12px; padding:12px;">
+          <legend style="font-size:14px;">Columns</legend>
+          <div style="display:flex; gap:12px; margin-bottom:10px;">
+            <button type="button" class="btn-tiny" onclick="selectCSVColumns(true)">Select all</button>
+            <button type="button" class="btn-tiny" onclick="selectCSVColumns(false)">Clear all</button>
+          </div>
+          <div id="csv-columns" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:8px; font-size:14px;"></div>
+        </fieldset>
+
+        <div id="csv-message" role="status" aria-live="polite" style="font-size:14px; color:var(--danger);"></div>
+      </div>
+      <div class="modal-actions"><button type="button" class="btn-ghost-sm" onclick="closeModal('csv-export-modal')">Cancel</button><button type="submit" class="btn-coral-sm" id="csv-submit" disabled>Download CSV</button></div>
+    </form>
   </div>
 </div>
 
@@ -669,7 +707,22 @@ function logAudit(action, meta){
   pendingAudit.push(entry);
   auditLog.unshift({...entry, actor:currentUser.name, time:new Date().toISOString()});
 }
-function fmtAuditTime(t){ return /^\d{4}-\d\d-\d\dT/.test(t||'') ? new Date(t).toLocaleString('en-PH',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : t; }
+
+function fmtAuditTime(t) {
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(t || '')) return t;
+
+  // Older timestamps without a timezone already contain local clock values.
+  const hasOffset = /(Z|[+-]\d{2}:?\d{2})$/i.test(t);
+  const date = new Date(hasOffset ? t : t + 'Z');
+  if (Number.isNaN(date.getTime())) return t;
+
+  return date.toLocaleString('en-PH', {
+    timeZone: hasOffset ? 'Asia/Manila' : 'UTC',
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true,
+  });
+}
+
 // Re-render the visible data screen after any change (keeps calendar/dashboard/reports in step with bookings).
 function refreshView(){
   if(!apiReady || document.querySelector('.modal-overlay.visible')) return;
@@ -806,6 +859,11 @@ function renderPane(){
   document.getElementById('view-title').textContent = titleMap[tabKey] || mod.name;
   const key = mod.n+'-'+tabKey;
   (paneFns[key] || paneFns['1-dashboard'])();
+  
+  const csvButton = document.getElementById('module-csv-button');
+  csvButton.dataset.report = CSV_REPORT_BY_TAB[key] || '';
+  csvButton.style.display = csvButton.dataset.report ? '' : 'none';
+
   const pane = document.getElementById('pane');
   pane.classList.remove('pane-transition');
   void pane.offsetWidth;
@@ -857,7 +915,7 @@ function renderUsersList(){
       <td><span class="stamp r-1" style="color:${colorFor(u.role)};">${u.role}</span></td>
       <td style="color:var(--ink-muted);">${u.dept}</td>
       <td><span class="stamp r-2" style="color:${u.status==='Active'?'var(--cardamom)':'var(--danger)'};">${u.status}</span></td>
-      <td class="mono" style="color:var(--ink-muted); font-size:15px;">${u.last}</td>
+      <td class="mono" style="color:var(--ink-muted); font-size:15px;">${fmtAuditTime(u.last)}</td>
       <td><div class="row-actions">
         <button class="icon-btn" title="Edit role/email" onclick="openUserModal(${u.id})">✎</button>
         <button class="icon-btn" title="Toggle status" onclick="toggleStatus(${u.id})">⇄</button>
@@ -1452,20 +1510,238 @@ function pane_7_reports(){
         <div class="barchart-track"><div class="barchart-fill" style="width:${(statusCounts[s]/maxCount*100)}%; background:${statusColor[s]};"></div></div>
         <div class="barchart-val">${statusCounts[s]}</div></div>`).join('')}
     </div>
-    <button class="btn-ghost-sm" onclick="exportBookingsCSV()">⬇ Export Bookings CSV</button>
+    <button class="btn-ghost-sm" onclick="openCSVExport('bookings', true)">↓ Export Report CSV</button>
   `;
 }
-function exportBookingsCSV(){
-  const header = "Booking No,Customer,Event Date,Start Time,End Time,Venue,Guests,Status,Quote Ref\n";
-  const rows = bookings.map(b=>[b.id,b.customer,b.eventDate,fmtTime(b.eventTime),fmtTime(b.eventEndTime||minutesToTimeStr(toMinutes(b.eventTime)+EVENT_DURATION_MIN)),b.venue,b.guests,b.status,b.quoteRef].map(v=>`"${v}"`).join(",")).join("\n");
-  const blob = new Blob([header+rows], {type:"text/csv"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = "scims-bookings-export.csv";
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  logAudit("exported bookings report to CSV", `${bookings.length} records`);
-  showToast("CSV downloaded");
+
+// CSV exports use the report definitions and permissions returned by the server.
+const CSV_REPORT_BY_TAB = {
+  '1-accounts': 'users', '1-audit': 'audit',
+  '2-customers': 'customers', '2-inquiries': 'inquiries',
+  '3-quotations': 'quotations',
+  '4-bookings': 'bookings', '4-calendar': 'schedule',
+  '5-staff': 'staff', '5-checklist': 'checklists',
+};
+
+let csvReports = [];
+let csvBusy = false;
+
+function csvEl(id) {
+  return document.getElementById(id);
+}
+
+function csvMessage(message) {
+  csvEl('csv-message').textContent = message;
+}
+
+function selectCSVColumns(checked) {
+  const inputs = csvEl('csv-columns').querySelectorAll('input');
+  inputs.forEach(input => input.checked = checked);
+}
+
+function configureCSVExport() {
+  const report = csvReports.find(r => r.type === csvEl('csv-report').value);
+  if (!report) return;
+
+  csvEl('csv-date-fields').hidden = !report.dateLabel;
+  csvEl('csv-date-label').textContent = report.dateLabel || '';
+  csvEl('csv-from').value = '';
+  csvEl('csv-to').value = '';
+  csvEl('csv-status-field').hidden = !report.statuses.length;
+  csvEl('csv-status').replaceChildren(new Option('All statuses', ''));
+
+  for (const status of report.statuses) {
+    csvEl('csv-status').append(new Option(status, status));
+  }
+
+  csvEl('csv-search').value = '';
+
+  // Create the column options as text instead of inserting them as raw HTML.
+  const columnList = csvEl('csv-columns');
+  columnList.replaceChildren();
+
+  for (const column of report.columns) {
+    const label = document.createElement('label');
+    label.style.display = 'flex';
+    label.style.gap = '6px';
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.value = column;
+    checkbox.checked = true;
+
+    label.append(checkbox, document.createTextNode(column));
+    columnList.append(label);
+  }
+
+  csvMessage('');
+  csvEl('csv-submit').disabled = false;
+}
+
+async function openCSVExport(defaultType, showReportType = false) {
+  if (csvBusy || !apiReady || signingOut) return;
+
+  csvBusy = true;
+  csvReports = [];
+  csvEl('csv-report-field').hidden = !showReportType;
+  csvEl('csv-report').replaceChildren();
+  csvEl('csv-columns').replaceChildren();
+  csvEl('csv-date-fields').hidden = true;
+  csvEl('csv-status-field').hidden = true;
+  csvEl('csv-search').value = '';
+  csvEl('csv-submit').disabled = true;
+  csvMessage('Loading available reports…');
+  csvEl('csv-export-modal').classList.add('visible');
+
+  try {
+    const response = await fetch('/api/exports', { cache: 'no-store' });
+    const body = await response.json();
+
+    if (!response.ok) throw new Error(body.error?.message || 'Could not load export options.');
+
+    csvReports = body.reports;
+
+    if (!csvReports.length) {
+      csvMessage('Your role has no exportable reports.');
+      return;
+    }
+
+    // Individual modules export only their current report, Module 6 can switch reports.
+    if (!showReportType) {
+      csvReports = csvReports.filter(r => r.type === defaultType);
+
+      if (!csvReports.length) {
+        csvMessage('Your role cannot export this report.');
+        return;
+      }
+    }
+
+    for (const report of csvReports) {
+      csvEl('csv-report').append(new Option(report.label, report.type));
+    }
+
+    if (csvReports.some(r => r.type === defaultType)) {
+      csvEl('csv-report').value = defaultType;
+    }
+
+    configureCSVExport();
+
+    // Carry over the current screen's search or selected checklist when available.
+    const searchFields = {
+      users: 'user-search',
+      customers: 'cust-search',
+      checklists: 'checklist-booking-select',
+    };
+
+    const searchId = searchFields[defaultType];
+
+    if (searchId && csvEl('csv-report').value === defaultType) {
+      csvEl('csv-search').value = csvEl(searchId)?.value || '';
+    }
+
+    if (showReportType) {
+      csvEl('csv-report').focus();
+    } else {
+      csvEl('csv-search').focus();
+    }
+
+  } catch (error) {
+    csvMessage(error.message);
+  } finally {
+    csvBusy = false;
+  }
+}
+
+async function submitCSVExport(event) {
+  event.preventDefault();
+
+  if (csvBusy || !apiReady || signingOut) return;
+
+  const report = csvReports.find(r => r.type === csvEl('csv-report').value);
+  if (!report) return;
+
+  const from = report.dateLabel ? csvEl('csv-from').value : '';
+  const to = report.dateLabel ? csvEl('csv-to').value : '';
+  const selected = csvEl('csv-columns').querySelectorAll('input:checked');
+  const columns = Array.from(selected).map(input => input.value);
+
+  if (from && to && from > to) {
+    csvMessage('The start date must not be after the end date.');
+    return;
+  }
+
+  if (!columns.length) {
+    csvMessage('Select at least one column.');
+    return;
+  }
+
+  const filters = {
+    from,
+    to,
+    status: report.statuses.length ? csvEl('csv-status').value : '',
+    search: csvEl('csv-search').value,
+    columns,
+  };
+
+  csvBusy = true;
+  csvEl('csv-submit').disabled = true;
+  csvEl('csv-report').disabled = true;
+  csvMessage('Generating CSV from saved records…');
+
+  try {
+    // Finish pending changes so that the report uses the latest saved records.
+    await flushSave();
+
+    if (retrySave || reloadAfterRejection || !apiReady || signingOut) {
+      throw new Error('Please resolve unsaved changes before exporting.');
+    }
+
+    const response = await fetch('/api/exports/' + encodeURIComponent(report.type), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(filters),
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.error?.message || 'Could not generate CSV.');
+    }
+
+    const blob = await response.blob();
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const match = disposition.match(/filename="([a-z0-9-]+\.csv)"/i);
+    const filename = match ? match[1] : 'scims-' + report.type + '.csv';
+    const count = response.headers.get('X-Export-Count');
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = filename;
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+    closeModal('csv-export-modal');
+
+    if (count === '0') {
+      showToast('CSV generated with headers only: no matching records.', true);
+    } else {
+      showToast(`CSV generated (${count || 'unknown'} records).`, true);
+    }
+
+    // The server records the export; normal synchronization refreshes the audit trail.
+
+  } catch (error) {
+    csvMessage(error.message);
+  } finally {
+    csvBusy = false;
+    csvEl('csv-submit').disabled = false;
+    csvEl('csv-report').disabled = false;
+  }
 }
 
 // ---------------- DISPATCH TABLE ----------------

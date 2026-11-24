@@ -1,3 +1,5 @@
+process.env.TZ = 'Asia/Manila';
+
 require('dotenv').config();
 
 const bcrypt = require('bcryptjs');
@@ -10,6 +12,7 @@ const { collectionKeys, stateFromCollections } = require('./lib/collections');
 const { createLoginRateLimiter } = require('./lib/login-rate-limit');
 const { sanitizeState } = require('./lib/state');
 const { accessFor, isAdmin } = require('./lib/access');
+const { listReports, createExport, ExportError } = require('./lib/csv-exports');
 const { mutableCollections, StateChangeError, prepareStateChanges, saveStateChanges } = require('./lib/state-changes');
 
 if (!process.env.MONGODB_URI || !process.env.JWT_SECRET) throw new Error('MONGODB_URI and JWT_SECRET are required');
@@ -88,6 +91,56 @@ app.post('/api/auth/login', async (request, response, next) => {
 
 app.post('/api/auth/logout', (_request, response) => {
   response.clearCookie(COOKIE_NAME).status(204).end();
+});
+
+// Check the current account so a deactivated user cannot export data.
+async function exportAccount(request, response, next) {
+  try {
+    const db = await database();
+
+    const user = await db.collection('users').findOne(
+      { id: request.user.id, status: 'Active' },
+      { projection: { _id: 0, id: 1, name: 1, role: 1 } }
+    );
+
+    if (!user) {
+      return response.status(403).json({ error: { code: 'FORBIDDEN', message: 'Your account cannot export records.' } });
+    }
+
+    request.exportDb = db;
+    request.exportUser = user;
+
+    next();
+  } catch (error) { next(error); }
+}
+
+app.get('/api/exports', auth, exportAccount, (request, response) => {
+  const reports = listReports(request.exportUser.role);
+
+  response.set('Cache-Control', 'no-store').json({ reports });
+});
+
+app.post('/api/exports/:type', auth, exportAccount, async (request, response, next) => {
+  try {
+    const result = await createExport(
+      request.exportDb, request.exportUser, request.params.type, request.body
+    );
+
+    // Send the generated CSV as a downloadable file.
+    response.set({
+      'Cache-Control': 'no-store',
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="${result.filename}"`,
+      'X-Export-Count': String(result.count),
+    }).send(result.csv);
+
+  } catch (error) {
+    if (error instanceof ExportError) {
+      return response.status(error.status).json({ error: { code: 'EXPORT_ERROR', message: error.message } });
+    }
+
+    next(error);
+  }
 });
 
 app.get('/api/state', auth, async (request, response, next) => {
